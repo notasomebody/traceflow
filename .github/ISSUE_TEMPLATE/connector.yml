@@ -1,0 +1,25 @@
+name: 数据源适配建议
+description: 建议新的通用数据源连接器
+title: "[Connector] "
+labels: ["connector"]
+body:
+  - type: input
+    id: product
+    attributes:
+      label: 平台或数据源名称
+    validations:
+      required: true
+  - type: dropdown
+    id: access
+    attributes:
+      label: 可用访问方式
+      options: [公开 API, 本地文件, Git, 浏览器自动化, 其他]
+    validations:
+      required: true
+  - type: textarea
+    id: metadata
+    attributes:
+      label: 最小必要数据
+      description: 仅列出实现功能所必需的字段，不要填写真实凭据或内网地址。
+    validations:
+      required: true

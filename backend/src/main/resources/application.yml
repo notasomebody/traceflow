@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: traceflow-backend
+  datasource:
+    url: jdbc:sqlite:${TRACEFLOW_DB_PATH:${traceflow.db-path:traceflow.db}}
+    driver-class-name: org.sqlite.JDBC
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.sql
+
+server:
+  address: 127.0.0.1
+  port: ${TRACEFLOW_PORT:17890}
+  error:
+    include-message: always
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+traceflow:
+  session-token: ${TRACEFLOW_SESSION_TOKEN:}

@@ -1,0 +1,49 @@
+# Java
+backend/target/
+backend/traceflow.db
+
+# Node / Tauri
+frontend/node_modules/
+frontend/dist/
+frontend/src-tauri/target/
+
+# Runtime
+*.log
+*.db
+*.db-shm
+*.db-wal
+.traceflow/
+diagnostics/
+*.diagnostic.zip
+*.traceflow-config
+*.traceflow-private.json
+config/private/
+config/company/
+.env
+.env.*
+!.env.example
+traceflow-dashboard*.png
+tmp/
+
+# Local credentials and browser sessions
+credentials/
+sessions/
+browser-profile/
+playwright-profile/
+*.cookie.json
+*.session.json
+
+# Bundled runtime and installers
+frontend/src-tauri/runtime/
+*.msi
+*.msix
+*.dmg
+*.AppImage
+*.exe
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini

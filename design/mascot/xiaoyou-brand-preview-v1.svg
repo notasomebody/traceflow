@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000">
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#7968FF"/><stop offset="1" stop-color="#2ED2B2"/></linearGradient>
+    <linearGradient id="body2" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#6457F5"/><stop offset="1" stop-color="#24BFA6"/></linearGradient>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#F7F9FD"/><stop offset="1" stop-color="#EDF3FA"/></linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#26334F" flood-opacity=".14"/></filter>
+  </defs>
+  <rect width="1600" height="1000" fill="url(#bg)"/>
+  <text x="72" y="78" font-family="Segoe UI,Microsoft YaHei,sans-serif" font-size="40" font-weight="750" fill="#142039">迹汇 TraceFlow · 小鱿品牌草案 V1</text>
+  <text x="72" y="122" font-family="Segoe UI,Microsoft YaHei,sans-serif" font-size="21" fill="#667085">触手收集工作痕迹，报告卡承载每日成果</text>
+
+  <!-- app icon -->
+  <g transform="translate(72 178)" filter="url(#shadow)">
+    <rect width="370" height="370" rx="92" fill="#11192D"/>
+    <path d="M185 55c-26 52-88 53-105 119-13 49 19 92 65 103-4 22-18 30-35 19 8 33 42 40 64 18 6 31 49 31 56 0 22 22 56 15 64-18-17 11-31 3-35-19 46-11 78-54 65-103-17-66-79-67-105-119-8-16-26-16-34 0Z" fill="url(#body)"/>
+    <ellipse cx="185" cy="191" rx="95" ry="73" fill="#F8FBFF"/>
+    <circle cx="151" cy="184" r="10" fill="#162039"/><circle cx="219" cy="184" r="10" fill="#162039"/>
+    <path d="M167 215c10 12 27 12 37 0" fill="none" stroke="#162039" stroke-width="8" stroke-linecap="round"/>
+    <rect x="235" y="227" width="70" height="82" rx="18" fill="#fff" stroke="#11192D" stroke-width="8"/>
+    <path d="m252 269 10 10 24-28" fill="none" stroke="#26BEA5" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="72" y="592" font-family="Segoe UI,Microsoft YaHei,sans-serif" font-size="28" font-weight="700" fill="#142039">程序图标</text>
+  <text x="72" y="630" font-family="Segoe UI,Microsoft YaHei,sans-serif" font-size="19" fill="#667085">深色底保证任务栏与桌面辨识度</text>
+
+  <!-- hero mascot -->
+  <g transform="translate(520 177)" filter="url(#shadow)">
+    <rect width="470" height="650" rx="40" fill="#fff"/>
+    <ellipse cx="235" cy="561" rx="142" ry="28" fill="#DCE5F2"/>
+    <path d="M235 80c-35 65-128 66-151 153-17 67 23 126 83 143-8 28-30 50-61 33 12 48 59 59 94 26 9 52 63 60 82 10 29 41 83 28 94-20 30 19 71-2 81-43-29 13-49-8-55-35 54-25 83-80 67-140-23-87-116-88-151-153-13-24-40-24-53 0Z" fill="url(#body)"/>
+    <ellipse cx="235" cy="263" rx="129" ry="99" fill="#F9FBFF"/>
+    <ellipse cx="184" cy="254" rx="14" ry="17" fill="#172139"/><ellipse cx="286" cy="254" rx="14" ry="17" fill="#172139"/>
+    <ellipse cx="151" cy="286" rx="19" ry="10" fill="#FF86AE" opacity=".75"/><ellipse cx="319" cy="286" rx="19" ry="10" fill="#FF86AE" opacity=".75"/>
+    <path d="M212 291c13 19 34 19 47 0" fill="none" stroke="#172139" stroke-width="10" stroke-linecap="round"/>
+    <rect x="171" y="336" width="128" height="151" rx="25" fill="#fff" stroke="#172139" stroke-width="9"/>
+    <path d="M200 374h70M200 401h70M200 428h47" stroke="#5E6AEF" stroke-width="11" stroke-linecap="round"/>
+    <circle cx="276" cy="458" r="28" fill="#2CC7AA"/><path d="m263 458 9 9 17-20" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M126 360c28 10 41 24 53 43M344 360c-28 10-41 24-53 43" fill="none" stroke="#645FEB" stroke-width="20" stroke-linecap="round"/>
+    <text x="235" y="606" text-anchor="middle" font-family="Segoe UI,Microsoft YaHei,sans-serif" font-size="24" font-weight="700" fill="#142039">小鱿 · 标准形象</text>
+  </g>
+
+  <!-- states -->
+  <g transform="translate(1060 177)">
+    <rect width="468" height="650" rx="40" fill="#fff" filter="url(#shadow)"/>
+    <text x="36" y="58" font-family="Segoe UI,Microsoft YaHei,sans-serif" font-size="25" font-weight="700" fill="#142039">程序内状态</text>
+    <g transform="translate(38 94)">
+      <rect width="182" height="222" rx="28" fill="#F2F1FF"/>
+      <path d="M91 31c-15 29-58 31-67 69-7 29 11 55 38 63-3 14-13 24-25 16 5 23 28 28 44 12 4 25 29 26 38 4 15 14 37 7 41-15-11 6-20-3-22-17 27-8 45-34 38-63-9-38-52-40-67-69-5-10-13-10-18 0Z" fill="url(#body2)"/>
+      <ellipse cx="91" cy="107" rx="54" ry="41" fill="#fff"/><circle cx="72" cy="104" r="6" fill="#172139"/><circle cx="110" cy="104" r="6" fill="#172139"/>
+      <path d="M77 126c8 8 20 8 28 0" fill="none" stroke="#172139" stroke-width="5" stroke-linecap="round"/>
+      <path d="M51 175h80" stroke="#7567F6" stroke-width="8" stroke-linecap="round" stroke-dasharray="2 16"/>
+      <text x="91" y="207" text-anchor="middle" font-family="Segoe UI,Microsoft YaHei,sans-serif" font-size="16" fill="#59657C">正在收集痕迹</text>
+    </g>
+    <g transform="translate(248 94)">
+      <rect width="182" height="222" rx="28" fill="#EBFAF6"/>
+      <path d="M91 31c-15 29-58 31-67 69-7 29 11 55 38 63-3 14-13 24-25 16 5 23 28 28 44 12 4 25 29 26 38 4 15 14 37 7 41-15-11 6-20-3-22-17 27-8 45-34 38-63-9-38-52-40-67-69-5-10-13-10-18 0Z" fill="url(#body2)"/>
+      <ellipse cx="91" cy="107" rx="54" ry="41" fill="#fff"/><path d="M64 105c7-8 15-8 22 0M99 105c7-8 15-8 22 0" fill="none" stroke="#172139" stroke-width="5" stroke-linecap="round"/>
+      <path d="M77 125c8 10 20 10 28 0" fill="none" stroke="#172139" stroke-width="5" stroke-linecap="round"/>
+      <circle cx="143" cy="55" r="28" fill="#2BC7A9"/><path d="m131 55 8 8 16-19" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="91" y="207" text-anchor="middle" font-family="Segoe UI,Microsoft YaHei,sans-serif" font-size="16" fill="#59657C">汇报已完成</text>
+    </g>
+    <g transform="translate(38 344)">
+      <rect width="392" height="245" rx="28" fill="#11192D"/>
+      <path d="M92 59c-13 26-49 27-57 60-6 25 8 46 31 53-2 11-10 19-20 14 4 18 22 22 35 10 3 20 25 21 32 3 13 12 31 6 34-12-9 5-16-2-18-15 23-7 37-28 31-53-8-33-44-34-57-60-4-8-8-8-11 0Z" fill="url(#body)"/>
+      <ellipse cx="92" cy="124" rx="45" ry="34" fill="#fff"/><circle cx="77" cy="121" r="5" fill="#172139"/><circle cx="107" cy="121" r="5" fill="#172139"/>
+      <text x="181" y="93" font-family="Segoe UI,Microsoft YaHei,sans-serif" font-size="21" font-weight="700" fill="#fff">晚上好，今天的日报</text>
+      <text x="181" y="128" font-family="Segoe UI,Microsoft YaHei,sans-serif" font-size="18" fill="#AEB8CC">已经整理好了</text>
+      <rect x="181" y="159" width="158" height="44" rx="14" fill="#6E63F4"/><text x="260" y="188" text-anchor="middle" font-family="Segoe UI,Microsoft YaHei,sans-serif" font-size="17" font-weight="700" fill="#fff">查看并确认</text>
+    </g>
+  </g>
+
+  <rect x="72" y="880" width="1456" height="68" rx="22" fill="#E8EDF6"/>
+  <circle cx="110" cy="914" r="7" fill="#6D63F5"/><text x="132" y="922" font-family="Segoe UI,Microsoft YaHei,sans-serif" font-size="20" fill="#526078">核心气质：可靠的本地工作助手，而不是儿童玩具；亲和但保持专业。</text>
+</svg>
