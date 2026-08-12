@@ -71,3 +71,66 @@ SET id = 'browser-work',
     name = '通用业务平台'
 WHERE id = 'tds-web'
   AND name = '星环 TDS 数据中台';
+
+--changeset traceflow:004
+CREATE TABLE IF NOT EXISTS project_definition (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    code TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'ACTIVE',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS project_match_keyword (
+    project_id TEXT NOT NULL,
+    keyword TEXT NOT NULL,
+    PRIMARY KEY (project_id, keyword),
+    FOREIGN KEY (project_id) REFERENCES project_definition(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS activity_observation (
+    id TEXT PRIMARY KEY,
+    captured_at TEXT NOT NULL,
+    application_name TEXT NOT NULL,
+    window_title TEXT NOT NULL,
+    duration_seconds INTEGER NOT NULL DEFAULT 0,
+    project_id TEXT,
+    project_name TEXT NOT NULL DEFAULT '待归类',
+    classification TEXT NOT NULL DEFAULT 'PENDING',
+    confidence REAL NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (project_id) REFERENCES project_definition(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_activity_captured_at ON activity_observation(captured_at);
+CREATE INDEX IF NOT EXISTS idx_activity_project_id ON activity_observation(project_id);
+
+--changeset traceflow:005
+CREATE TABLE IF NOT EXISTS report_snapshot (
+    id TEXT PRIMARY KEY,
+    report_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    report_date TEXT NOT NULL,
+    report_type TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    next_plan TEXT NOT NULL,
+    target_minutes INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(report_id, version),
+    FOREIGN KEY (report_id) REFERENCES report_draft(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_report_snapshot_type_date ON report_snapshot(report_type, report_date);
+
+--changeset traceflow:006
+CREATE TABLE IF NOT EXISTS ocr_observation (
+    id TEXT PRIMARY KEY,
+    captured_at TEXT NOT NULL,
+    application_name TEXT NOT NULL,
+    recognized_text TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_ocr_observation_captured_at ON ocr_observation(captured_at);

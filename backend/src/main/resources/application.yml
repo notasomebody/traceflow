@@ -21,3 +21,5 @@ management:
 
 traceflow:
   session-token: ${TRACEFLOW_SESSION_TOKEN:}
+  data-dir: ${TRACEFLOW_DATA_DIR:${user.home}/.traceflow}
+  key-protection: ${TRACEFLOW_KEY_PROTECTION:dpapi}

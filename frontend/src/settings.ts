@@ -1,4 +1,5 @@
 export type AiMode = "EXPORT" | "LOCAL" | "API";
+export type AiProvider = "OPENAI" | "COMPATIBLE" | "OLLAMA" | "CODEX";
 
 export type AppSettings = {
   displayName: string;
@@ -9,6 +10,10 @@ export type AppSettings = {
   metadataOnly: boolean;
   localStatistics: boolean;
   minimizeToTray: boolean;
+  monitoringEnabled: boolean;
+  aiProvider: AiProvider;
+  aiModel: string;
+  aiBaseUrl: string;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -20,6 +25,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   metadataOnly: true,
   localStatistics: true,
   minimizeToTray: true,
+  monitoringEnabled: false,
+  aiProvider: "OPENAI",
+  aiModel: "gpt-5.4-mini",
+  aiBaseUrl: "",
 };
 
 const SETTINGS_KEY = "traceflow.settings.v1";

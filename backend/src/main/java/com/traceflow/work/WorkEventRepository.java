@@ -1,5 +1,6 @@
 package com.traceflow.work;
 
+import com.traceflow.security.SensitiveTextCipher;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -12,9 +13,11 @@ import java.util.UUID;
 @Repository
 public class WorkEventRepository {
     private final JdbcClient jdbc;
+    private final SensitiveTextCipher sensitiveText;
 
-    public WorkEventRepository(JdbcClient jdbc) {
+    public WorkEventRepository(JdbcClient jdbc, SensitiveTextCipher sensitiveText) {
         this.jdbc = jdbc;
+        this.sensitiveText = sensitiveText;
     }
 
     public List<WorkEvent> findByDate(LocalDate date) {
@@ -30,10 +33,10 @@ public class WorkEventRepository {
                         rs.getString("id"),
                         OffsetDateTime.parse(rs.getString("occurred_at")),
                         rs.getString("source_type"),
-                        rs.getString("source_name"),
-                        rs.getString("project_name"),
-                        rs.getString("title"),
-                        rs.getString("summary"),
+                        sensitiveText.decrypt(rs.getString("source_name")),
+                        sensitiveText.decrypt(rs.getString("project_name")),
+                        sensitiveText.decrypt(rs.getString("title")),
+                        sensitiveText.decrypt(rs.getString("summary")),
                         rs.getString("evidence_level"),
                         rs.getInt("duration_minutes"),
                         rs.getInt("included_in_report") == 1
@@ -60,10 +63,10 @@ public class WorkEventRepository {
                 .param("id", id)
                 .param("occurredAt", occurredAt.toString())
                 .param("sourceType", request.sourceType())
-                .param("sourceName", request.sourceName())
-                .param("projectName", request.projectName())
-                .param("title", request.title())
-                .param("summary", request.summary() == null ? "" : request.summary())
+                .param("sourceName", sensitiveText.encrypt(request.sourceName()))
+                .param("projectName", sensitiveText.encrypt(request.projectName()))
+                .param("title", sensitiveText.encrypt(request.title()))
+                .param("summary", sensitiveText.encrypt(request.summary() == null ? "" : request.summary()))
                 .param("evidenceLevel", evidenceLevel)
                 .param("durationMinutes", request.durationMinutes())
                 .param("included", included ? 1 : 0)

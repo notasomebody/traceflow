@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "TraceFlow",
+  "productName": "迹汇 TraceFlow",
   "version": "0.1.0",
   "identifier": "com.traceflow.desktop",
   "build": {
@@ -26,8 +26,14 @@
     "active": true,
     "targets": "all",
     "resources": {
-      "../../backend/target/traceflow-backend.jar": "backend/traceflow-backend.jar"
+      "../../backend/target/traceflow-backend.jar": "backend/traceflow-backend.jar",
+      "runtime": "runtime"
     },
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"]
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
   }
 }

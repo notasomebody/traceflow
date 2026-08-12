@@ -4,6 +4,8 @@ import com.traceflow.connector.ConnectorConfig;
 import com.traceflow.connector.ConnectorRepository;
 import com.traceflow.report.ReportDraft;
 import com.traceflow.report.ReportService;
+import com.traceflow.report.PeriodReport;
+import com.traceflow.report.ReportSnapshot;
 import com.traceflow.work.CreateWorkEventRequest;
 import com.traceflow.work.WorkEvent;
 import com.traceflow.work.WorkEventRepository;
@@ -58,6 +60,31 @@ public class TraceflowController {
     @PostMapping("/reports/daily/confirm")
     public ReportDraft confirm(@Valid @RequestBody ConfirmReportRequest request) {
         return reports.confirm(request.date(), request.summary(), request.nextPlan(), request.targetMinutes());
+    }
+
+    @PostMapping("/reports/weekly/generate")
+    public PeriodReport generateWeekly(@Valid @RequestBody GenerateReportRequest request) {
+        return reports.generateWeekly(request.date(), request.targetMinutes());
+    }
+
+    @PostMapping("/reports/monthly/generate")
+    public PeriodReport generateMonthly(@Valid @RequestBody GenerateReportRequest request) {
+        return reports.generateMonthly(request.date(), request.targetMinutes());
+    }
+
+    @PostMapping("/reports/{type}/confirm")
+    public ReportDraft confirmPeriod(@PathVariable String type, @Valid @RequestBody ConfirmReportRequest request) {
+        return reports.confirm(request.date(), type, request.summary(), request.nextPlan(), request.targetMinutes());
+    }
+
+    @GetMapping("/reports/history")
+    public List<ReportDraft> reportHistory(@RequestParam(defaultValue = "DAILY") String type) {
+        return reports.history(type);
+    }
+
+    @GetMapping("/reports/snapshots")
+    public List<ReportSnapshot> reportSnapshots(@RequestParam(defaultValue = "DAILY") String type) {
+        return reports.snapshots(type);
     }
 
     public record Dashboard(LocalDate date, List<WorkEvent> events, List<ConnectorConfig> connectors,
