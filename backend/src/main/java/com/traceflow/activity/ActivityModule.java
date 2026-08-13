@@ -103,6 +103,17 @@ public class ActivityModule {
         return findProject(id);
     }
 
+    @Transactional
+    public void deleteProject(String id) {
+        int references = jdbc.sql("SELECT COUNT(*) FROM activity_observation WHERE project_id = :id")
+                .param("id", id).query(Integer.class).single();
+        if (references > 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "项目已有活动记录，请改为归档");
+        }
+        int deleted = jdbc.sql("DELETE FROM project_definition WHERE id = :id").param("id", id).update();
+        if (deleted == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "项目不存在");
+    }
+
     public List<ActivityObservation> observations(LocalDate date) {
         return jdbc.sql("""
                 SELECT id, captured_at, application_name, window_title, duration_seconds,

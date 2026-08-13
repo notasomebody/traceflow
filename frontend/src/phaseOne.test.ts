@@ -3,6 +3,7 @@ import { buildAiPrompt, buildReportText } from "./reportExport";
 import { DEFAULT_SETTINGS, exportShareCode, importShareCode, loadSettings, markOnboardingCompleted, onboardingCompleted, resetOnboarding, saveSettings } from "./settings";
 import { clearUsageStats, loadUsageStats, recordUsage } from "./usageStats";
 import { localDateKey, shouldGenerateDaily } from "./reportScheduler";
+import { fetchLocal, waitForLocalApi } from "./localApi";
 
 const values = new Map<string, string>();
 Object.defineProperty(globalThis, "localStorage", { value: { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => values.set(key, value), removeItem: (key: string) => values.delete(key), clear: () => values.clear() } });
@@ -51,6 +52,30 @@ describe("日报自动生成调度", () => {
   });
   it("日期键使用本地日期而不是 UTC 日期", () => {
     expect(localDateKey(new Date(2026, 7, 12, 0, 30))).toBe("2026-08-12");
+  });
+});
+
+describe("本地后端启动窗口", () => {
+  it("首次连接失败后自动重试", async () => {
+    let calls = 0;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      if (calls < 3) throw new TypeError("connection refused");
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+    await expect(fetchLocal("http://127.0.0.1/test", undefined, 3)).resolves.toMatchObject({ status: 200 });
+    expect(calls).toBe(3);
+    globalThis.fetch = originalFetch;
+  });
+  it("写操作前等待健康接口", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      expect(String(input)).toBe("http://127.0.0.1:17890/actuator/health");
+      return new Response('{"status":"UP"}', { status: 200 });
+    }) as typeof fetch;
+    await expect(waitForLocalApi("http://127.0.0.1:17890/api")).resolves.toBeUndefined();
+    globalThis.fetch = originalFetch;
   });
 });
 

@@ -87,6 +87,12 @@ public class ActivityController {
         return activities.setProjectStatus(id, status);
     }
 
+    @DeleteMapping("/projects/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteProject(@PathVariable String id) {
+        activities.deleteProject(id);
+    }
+
     @DeleteMapping("/privacy/all-data")
     public ClearResult clearAllPrivateData() {
         int deleted = activities.clearAllPrivateData();

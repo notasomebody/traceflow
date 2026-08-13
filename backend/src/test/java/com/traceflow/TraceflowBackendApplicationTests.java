@@ -134,6 +134,20 @@ class TraceflowBackendApplicationTests {
     }
 
     @Test
+    void projectCanBeCreatedWithOnlyAName() throws Exception {
+        String body = mvc.perform(post("/api/projects")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"仅名称项目\",\"code\":\"\",\"matchKeywords\":[]}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.name").value("仅名称项目"))
+                .andExpect(jsonPath("$.matchKeywords.length()").value(0))
+                .andReturn().getResponse().getContentAsString();
+        String id = json.readTree(body).get("id").asText();
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/projects/{id}", id))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
     void adjacentActivityIsMergedAndCanBeEditedOrDeleted() throws Exception {
         String first = "{\"capturedAt\":\"2026-08-12T09:00:00+08:00\",\"applicationName\":\"Editor.exe\",\"windowTitle\":\"同一工作窗口\",\"durationSeconds\":60}";
         String second = "{\"capturedAt\":\"2026-08-12T09:01:00+08:00\",\"applicationName\":\"Editor.exe\",\"windowTitle\":\"同一工作窗口\",\"durationSeconds\":90}";

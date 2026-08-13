@@ -1,5 +1,6 @@
 import { Archive, Check, Clock3, FolderKanban, Inbox, Pencil, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { fetchLocal, waitForLocalApi } from "./localApi";
 
 type Project = { id: string; name: string; code: string; status: "ACTIVE" | "ARCHIVED"; matchKeywords: string[] };
 type Observation = { id: string; capturedAt: string; applicationName: string; windowTitle: string; durationSeconds: number; projectId?: string; projectName: string; classification: "AUTO" | "PENDING" | "MANUAL"; confidence: number };
@@ -11,10 +12,11 @@ export default function ProjectInbox({ api, date }: { api: string; date: string 
   const [code, setCode] = useState("");
   const [keywords, setKeywords] = useState("");
   const [message, setMessage] = useState("");
+  const [creating, setCreating] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [projectResponse, activityResponse] = await Promise.all([fetch(`${api}/projects`), fetch(`${api}/activity?date=${date}`)]);
+      const [projectResponse, activityResponse] = await Promise.all([fetchLocal(`${api}/projects`), fetchLocal(`${api}/activity?date=${date}`)]);
       if (!projectResponse.ok || !activityResponse.ok) throw new Error();
       setProjects(await projectResponse.json()); setObservations(await activityResponse.json());
     } catch { setMessage("无法读取项目库或活动记录"); }
@@ -23,10 +25,18 @@ export default function ProjectInbox({ api, date }: { api: string; date: string 
 
   const createProject = async () => {
     const matchKeywords = keywords.split(/,|，|\r?\n/).map(value => value.trim()).filter(Boolean);
-    if (!name.trim() || !matchKeywords.length) { setMessage("项目名称和至少一个识别关键词必填"); return; }
-    const response = await fetch(`${api}/projects`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, code, matchKeywords }) });
-    if (!response.ok) { setMessage("项目创建失败，请检查名称是否重复"); return; }
+    if (!name.trim()) { setMessage("请填写项目名称"); return; }
+    let response: Response;
+    setCreating(true);
+    setMessage("正在等待本地服务并创建项目…");
+    try {
+      await waitForLocalApi(api);
+      response = await fetch(`${api}/projects`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, code, matchKeywords }) });
+    }
+    catch { setMessage("本地服务未能启动，请重启迹汇后再试"); setCreating(false); return; }
+    if (!response.ok) { setMessage(response.status === 409 ? "项目名称已存在" : "项目创建失败，请稍后重试"); setCreating(false); return; }
     setName(""); setCode(""); setKeywords(""); setMessage("项目已创建，新活动将按关键词自动归类"); await load();
+    setCreating(false);
   };
   const setStatus = async (project: Project) => {
     await fetch(`${api}/projects/${project.id}/status?status=${project.status === "ACTIVE" ? "ARCHIVED" : "ACTIVE"}`, { method: "POST" }); await load();
@@ -57,10 +67,9 @@ export default function ProjectInbox({ api, date }: { api: string; date: string 
   return <section className="panel project-inbox">
     <div className="panel-heading"><div><p className="eyebrow">PROJECT CLASSIFICATION</p><h2>项目库与待归类</h2></div><span className="pending-count"><Inbox/>{pending.length} 条待确认</span></div>
     <div className="project-layout">
-      <div className="project-library"><h3><FolderKanban/>我的项目</h3><div className="project-create"><input value={name} onChange={event => setName(event.target.value)} placeholder="项目名称"/><input value={code} onChange={event => setCode(event.target.value)} placeholder="简称 / 编码"/><textarea value={keywords} onChange={event => setKeywords(event.target.value)} placeholder="关键词，每行一个或逗号分隔"/><button onClick={() => void createProject()}><Plus/>创建项目</button></div>{projects.map(project => <article key={project.id} className={project.status === "ARCHIVED" ? "archived" : ""}><div><strong>{project.name}</strong><span>{project.code || "无编码"} · {project.matchKeywords.join(" / ")}</span></div><button onClick={() => void setStatus(project)}><Archive/>{project.status === "ACTIVE" ? "归档" : "恢复"}</button></article>)}</div>
+      <div className="project-library"><h3><FolderKanban/>我的项目</h3><div className="project-create"><input value={name} onChange={event => setName(event.target.value)} placeholder="项目名称（必填）"/><input value={code} onChange={event => setCode(event.target.value)} placeholder="简称 / 编码（可选）"/><textarea value={keywords} onChange={event => setKeywords(event.target.value)} placeholder="识别关键词（可选），可稍后补充"/><button disabled={creating} onClick={() => void createProject()}><Plus/>{creating ? "创建中…" : "创建项目"}</button>{message && <p className="project-form-message">{message}</p>}</div>{projects.map(project => <article key={project.id} className={project.status === "ARCHIVED" ? "archived" : ""}><div><strong>{project.name}</strong><span>{project.code || "无编码"} · {project.matchKeywords.length ? project.matchKeywords.join(" / ") : "尚未配置识别关键词"}</span></div><button onClick={() => void setStatus(project)}><Archive/>{project.status === "ACTIVE" ? "归档" : "恢复"}</button></article>)}</div>
       <div className="pending-list"><h3><Inbox/>低置信度集中确认</h3>{pending.length ? pending.map(item => <article key={item.id}><div><strong>{item.applicationName}</strong><p>{item.windowTitle}</p><span>{Math.max(1, Math.round(item.durationSeconds / 60))} 分钟 · 置信度 {Math.round(item.confidence * 100)}%</span></div><select defaultValue="" onChange={event => { if (event.target.value) void classify(item, event.target.value); }}><option value="" disabled>选择项目…</option>{projects.filter(project => project.status === "ACTIVE").map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></article>) : <div className="empty-pending"><Check/>今日没有待归类记录</div>}</div>
     </div>
     <div className="activity-review"><h3><Clock3/>今日活动（相同窗口 10 分钟内自动合并）</h3>{observations.length ? observations.map(item => <article key={item.id}><div><strong>{item.projectName}</strong><p>{item.applicationName} · {item.windowTitle}</p><span>{Math.max(1, Math.round(item.durationSeconds / 60))} 分钟 · {item.classification === "PENDING" ? "待归类" : item.classification === "AUTO" ? "自动归类" : "人工归类"}</span></div><div><button title="修正时长" onClick={() => void editDuration(item)}><Pencil/></button><button title="删除记录" onClick={() => void deleteActivity(item)}><Trash2/></button></div></article>) : <div className="empty-pending"><Check/>今日暂无活动记录</div>}</div>
-    {message && <p className="settings-message">{message}</p>}
   </section>;
 }

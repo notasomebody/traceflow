@@ -13,6 +13,7 @@ import ReportsWorkspace from "./ReportsWorkspace";
 import AiAssistantPanel from "./AiAssistantPanel";
 import ProjectInbox from "./ProjectInbox";
 import { localDateKey, shouldGenerateDaily } from "./reportScheduler";
+import { fetchLocal } from "./localApi";
 
 type WorkEvent = { id:string; occurredAt:string; sourceType:string; sourceName:string; projectName:string; title:string; summary:string; evidenceLevel:string; durationMinutes:number; includedInReport:boolean };
 type Connector = { id:string; name:string; connectorType:string; enabled:boolean; privacyLevel:string; syncStatus:string; lastSyncedAt?:string };
@@ -41,7 +42,7 @@ export default function App() {
   const loadDashboard = useCallback(async (silent = false) => {
     if (!silent) setBusy(true);
     try {
-      const response = await fetch(`${API}/dashboard?date=${today}`);
+      const response = await fetchLocal(`${API}/dashboard?date=${today}`);
       if (!response.ok) throw new Error();
       const data:Dashboard = await response.json();
       setDashboard(data); setSummary(data.report?.summary ?? ""); setNextPlan(data.report?.nextPlan ?? "");
