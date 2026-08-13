@@ -15,6 +15,7 @@ export default function AiAssistantPanel({ settings, onChange, summary, nextPlan
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState("");
   const [message, setMessage] = useState("");
+  const [testing, setTesting] = useState(false);
   const id = secretId(settings.aiProvider);
   const prompt = useMemo(() => `请将以下工作汇报润色为真实、充实、专业的中文汇报。不得虚构事实、数据或完成项。\n\n工作总结：\n${summary}\n\n下一步计划：\n${nextPlan}`, [summary, nextPlan]);
 
@@ -36,16 +37,25 @@ export default function AiAssistantPanel({ settings, onChange, summary, nextPlan
   const generate = async () => {
     setBusy(true);
     try {
-      const response = await invoke<AiResponse>("generate_with_ai", { request: { provider: settings.aiProvider, baseUrl: settings.aiBaseUrl || null, model: settings.aiModel, prompt } });
+      const response = await invoke<AiResponse>("generate_with_ai", { request: { provider: settings.aiProvider, baseUrl: settings.aiBaseUrl || null, proxyUrl: settings.aiProxyUrl || null, model: settings.aiModel, prompt } });
       setResult(response.content); setPreviewing(false); setMessage(`${response.provider} 已返回结果，内容未自动覆盖原报告`);
     } catch (error) { setMessage(String(error)); }
     finally { setBusy(false); }
   };
+  const testConnection = async () => {
+    setTesting(true); setMessage("正在测试模型连接…");
+    try {
+      const response = await invoke<AiResponse>("generate_with_ai", { request: { provider: settings.aiProvider, baseUrl: settings.aiBaseUrl || null, proxyUrl: settings.aiProxyUrl || null, model: settings.aiModel, prompt: "只回复：连接成功" } });
+      setMessage(`${response.provider} 连接成功，模型 ${response.model} 可用`);
+    } catch (error) { setMessage(String(error)); }
+    finally { setTesting(false); }
+  };
 
   return <section className="panel ai-panel">
     <div className="panel-heading"><div><p className="eyebrow">AI ASSISTANT</p><h2>AI 润色与 Codex</h2></div><span className="privacy-chip"><ShieldCheck/>发送前必须确认</span></div>
-    <div className="ai-config"><label>提供方<select value={settings.aiProvider} onChange={event => update("aiProvider", event.target.value as AiProvider)}><option value="OPENAI">OpenAI</option><option value="COMPATIBLE">OpenAI 兼容接口</option><option value="OLLAMA">Ollama 本机</option><option value="CODEX">Codex 本地引擎</option></select></label><label>模型<input value={settings.aiModel} onChange={event => update("aiModel", event.target.value)}/></label>{(settings.aiProvider === "COMPATIBLE" || settings.aiProvider === "OLLAMA") && <label className="wide">接口地址<input value={settings.aiBaseUrl} onChange={event => update("aiBaseUrl", event.target.value)} placeholder={settings.aiProvider === "OLLAMA" ? "http://127.0.0.1:11434/api/chat" : "https://example.com/v1/chat/completions"}/></label>}</div>
+    <div className="ai-config"><label>提供方<select value={settings.aiProvider} onChange={event => update("aiProvider", event.target.value as AiProvider)}><option value="OPENAI">OpenAI</option><option value="COMPATIBLE">OpenAI 兼容接口</option><option value="OLLAMA">Ollama 本机</option><option value="CODEX">Codex 本地引擎</option></select></label><label>模型<input value={settings.aiModel} onChange={event => update("aiModel", event.target.value)}/></label>{(settings.aiProvider === "COMPATIBLE" || settings.aiProvider === "OLLAMA") && <label className="wide">接口地址<input value={settings.aiBaseUrl} onChange={event => update("aiBaseUrl", event.target.value)} placeholder={settings.aiProvider === "OLLAMA" ? "http://127.0.0.1:11434/api/chat" : "https://example.com/v1/chat/completions"}/></label>}{settings.aiProvider !== "OLLAMA" && settings.aiProvider !== "CODEX" && <label className="wide">代理地址（直连失败时填写）<input value={settings.aiProxyUrl} onChange={event => update("aiProxyUrl", event.target.value)} placeholder="例如：http://127.0.0.1:7890；留空则使用系统代理"/></label>}</div>
     {id && <div className="key-row"><KeyRound/><span>{hasSecret ? "密钥已安全保存" : "未配置密钥"}</span><input type="password" value={apiKey} onChange={event => setApiKey(event.target.value)} placeholder="输入后不可回读"/><button onClick={() => void saveKey()} disabled={!apiKey}><Check/>保存</button>{hasSecret && <button onClick={() => void removeKey()}><Trash2/></button>}</div>}
+    <button className="secondary-action ai-test" onClick={() => void testConnection()} disabled={testing || (Boolean(id) && !hasSecret)}>{testing ? <LoaderCircle className="spin"/> : <Check/>}测试连接</button>
     {!previewing ? <button className="primary-action" onClick={() => setPreviewing(true)} disabled={!summary.trim()}><Bot/>预览将要发送的内容</button> : <div className="ai-preview"><strong>仅以下文本将发送给 {settings.aiProvider}</strong><pre>{prompt}</pre><div className="inline-actions"><button onClick={() => setPreviewing(false)}>取消</button><button className="primary-action" onClick={() => void generate()} disabled={busy}>{busy ? <LoaderCircle className="spin"/> : <Send/>}我已检查，确认发送</button></div></div>}
     {result && <label className="ai-result">AI 返回结果<textarea value={result} onChange={event => setResult(event.target.value)}/><button className="secondary-action" onClick={() => void navigator.clipboard.writeText(result)}>复制结果</button></label>}
     {message && <p className="settings-message">{message}</p>}

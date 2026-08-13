@@ -38,6 +38,7 @@ export default function App() {
   const [busy,setBusy] = useState(false);
   const [notice,setNotice] = useState("正在连接本地服务…");
   const [monitorStatus,setMonitorStatus] = useState<MonitorStatus>("UNAVAILABLE");
+  const [taskDialog,setTaskDialog] = useState<"会议" | "培训" | "手动补充" | null>(null);
 
   const loadDashboard = useCallback(async (silent = false) => {
     if (!silent) setBusy(true);
@@ -48,17 +49,15 @@ export default function App() {
       setDashboard(data); setSummary(data.report?.summary ?? ""); setNextPlan(data.report?.nextPlan ?? "");
       setTargetMinutes(data.report?.targetMinutes ?? settings.targetMinutes ?? data.targetMinutes ?? 480); setNotice("本地数据已同步");
       return true;
-    } catch { if (!silent) setNotice("本地服务正在启动，请稍候…"); return false; }
+    } catch { if (!silent) setNotice("同步失败：无法连接本地服务，请重试或重启迹汇"); return false; }
     finally { if (!silent) setBusy(false); }
   }, [settings.targetMinutes]);
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       setBusy(true);
-      for (let attempt = 0; attempt < 30 && !cancelled; attempt += 1) {
-        if (await loadDashboard(true)) break;
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
+      const loaded = await loadDashboard(true);
+      if (!loaded && !cancelled) setNotice("连接失败：本地服务未就绪，请点击立即同步重试");
       if (!cancelled) setBusy(false);
     })();
     void fetch("/app-config.json").then(response => response.json()).then(config => setSupportEmail(config.supportEmail ?? "")).catch(() => setSupportEmail(""));
@@ -99,7 +98,7 @@ export default function App() {
   async function generateReport() {
     setBusy(true);
     try {
-      const response = await fetch(`${API}/reports/daily/generate`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({date:today,targetMinutes}) });
+      const response = await fetchLocal(`${API}/reports/daily/generate`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({date:today,targetMinutes}) }, 1);
       if (!response.ok) throw new Error();
       const report:Report = await response.json(); setSummary(report.summary); setNextPlan(report.nextPlan);
       setDashboard(current => current ? {...current,report} : current); setNotice("日报草稿已根据真实工作记录生成");
@@ -134,27 +133,21 @@ export default function App() {
     if (!summary.trim() || !nextPlan.trim()) return setNotice("请补全今日总结和明日计划");
     setBusy(true);
     try {
-      const response = await fetch(`${API}/reports/daily/confirm`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({date:today,summary,nextPlan,targetMinutes}) });
+      const response = await fetchLocal(`${API}/reports/daily/confirm`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({date:today,summary,nextPlan,targetMinutes}) }, 1);
       if (!response.ok) throw new Error();
       const report:Report = await response.json(); setDashboard(current => current ? {...current,report} : current); setNotice("已确认；当前版本请复制后手动提交到企业微信");
       recordUsage("confirm", settings.localStatistics);
     } catch { setNotice("确认失败，请稍后重试"); } finally { setBusy(false); }
   }
 
-  async function addManualEvent() {
-    const title = window.prompt("补充一项真实工作内容"); if (!title?.trim()) return;
-    const projectName = window.prompt("归属项目", "数据中台")?.trim() || "未分类项目";
-    const response = await fetch(`${API}/events`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({sourceType:"MANUAL",sourceName:"手动补充",projectName,title,durationMinutes:0}) });
-    if (response.ok) await loadDashboard(); else setNotice("补充失败，请检查本地服务");
-  }
-
-  async function addPublicTask(kind: "会议" | "培训") {
-    const title = window.prompt(`${kind}主题`); if (!title?.trim()) return;
-    const entered = window.prompt("实际时长（分钟）", "60"); if (entered === null) return;
-    const durationMinutes = Number(entered);
-    if (!Number.isFinite(durationMinutes) || durationMinutes < 0 || durationMinutes > 1440) return setNotice("时长需为 0～1440 分钟");
-    const response = await fetch(`${API}/events`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sourceType: "PUBLIC_TASK", sourceName: kind, projectName: "公共事务", title, durationMinutes: Math.round(durationMinutes) }) });
-    if (response.ok) { setNotice(`${kind}已记录到公共事务`); await loadDashboard(); } else setNotice(`${kind}记录失败，请检查本地服务`);
+  async function saveTask(task: { kind: "会议" | "培训" | "手动补充"; title: string; projectName: string; summary: string; durationMinutes: number }) {
+    setBusy(true);
+    try {
+      const response = await fetchLocal(`${API}/events`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sourceType: task.kind === "手动补充" ? "MANUAL" : "PUBLIC_TASK", sourceName: task.kind, projectName: task.projectName, title: task.title, summary: task.summary, durationMinutes: task.durationMinutes }) }, 1);
+      if (!response.ok) throw new Error();
+      setTaskDialog(null); setNotice(`${task.kind}已添加到今日工作`); await loadDashboard(true);
+    } catch { setNotice(`${task.kind}添加失败，请检查本地服务`); }
+    finally { setBusy(false); }
   }
 
   async function copyReport(mode: "report" | "ai") {
@@ -199,7 +192,7 @@ export default function App() {
       </section>
 
       <section className="workspace-grid">
-        <div className="panel timeline-panel"><div className="panel-heading"><div><p className="eyebrow">ACTIVITY</p><h2>工作证据时间线</h2></div><div className="timeline-actions"><button className="soft-button" onClick={() => void addPublicTask("会议")}><Plus size={16}/>会议</button><button className="soft-button" onClick={() => void addPublicTask("培训")}><Plus size={16}/>培训</button><button className="soft-button" onClick={() => void addManualEvent()}><Plus size={16}/>手动补充</button></div></div>
+        <div className="panel timeline-panel"><div className="panel-heading"><div><p className="eyebrow">ACTIVITY</p><h2>工作证据时间线</h2></div><div className="timeline-actions"><button className="soft-button" onClick={() => setTaskDialog("会议")}><Plus size={16}/>会议</button><button className="soft-button" onClick={() => setTaskDialog("培训")}><Plus size={16}/>培训</button><button className="soft-button" onClick={() => setTaskDialog("手动补充")}><Plus size={16}/>手动补充</button></div></div>
           <div className="timeline">{(dashboard?.events ?? []).map((event,index) => <article className="timeline-item" key={event.id}>
             <div className="timeline-time">{formatTime(event.occurredAt)}</div><div className={`timeline-node node-${index % 3}`}>{sourceIcon(event.sourceType)}</div>
             <div className="event-card"><div className="event-meta"><span>{event.projectName}</span><i>·</i><span>{event.sourceName}</span><em>{event.evidenceLevel === "MANUAL" ? "手动" : "元数据"}</em></div><h3>{event.title}</h3><p>{event.summary || "等待补充结果说明"}</p><div className="event-footer"><span><Clock3 size={14}/>{minutesLabel(event.durationMinutes)}</span></div></div>
@@ -233,5 +226,21 @@ export default function App() {
       onClose={() => setShowSettings(false)}
       onRestartGuide={() => { resetOnboarding(); setShowSettings(false); setShowOnboarding(true); }}
     />}
+    {taskDialog && <TaskDialog kind={taskDialog} onClose={() => setTaskDialog(null)} onSave={saveTask}/>}
   </div>;
+}
+
+function TaskDialog({ kind, onClose, onSave }: { kind: "会议" | "培训" | "手动补充"; onClose: () => void; onSave: (task: { kind: "会议" | "培训" | "手动补充"; title: string; projectName: string; summary: string; durationMinutes: number }) => Promise<void> }) {
+  const [title,setTitle] = useState("");
+  const [projectName,setProjectName] = useState(kind === "手动补充" ? "未分类项目" : "公共事务");
+  const [summary,setSummary] = useState("");
+  const [durationMinutes,setDurationMinutes] = useState(kind === "手动补充" ? 30 : 60);
+  const [error,setError] = useState("");
+  const submit = () => {
+    if (!title.trim()) return setError(`请填写${kind === "手动补充" ? "工作内容" : `${kind}主题`}`);
+    if (!projectName.trim()) return setError("请填写归属项目");
+    if (durationMinutes <= 0 || durationMinutes > 1440) return setError("实际时长需为 1～1440 分钟");
+    void onSave({ kind, title: title.trim(), projectName: projectName.trim(), summary: summary.trim(), durationMinutes });
+  };
+  return <div className="task-dialog-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><section className="task-dialog" role="dialog" aria-modal="true" aria-label={`添加${kind}`}><div className="task-dialog-title"><div><p className="eyebrow">QUICK ADD</p><h2>添加{kind}</h2><span>记录真实工作内容，保存后自动进入今日时间线和日报草稿。</span></div><button onClick={onClose} aria-label="关闭">×</button></div><label>{kind === "手动补充" ? "工作内容" : `${kind}主题`}<input autoFocus value={title} onChange={event => setTitle(event.target.value)} placeholder={kind === "会议" ? "例如：数据中台需求评审会" : kind === "培训" ? "例如：平台新版本功能培训" : "例如：完成接口异常场景验证"}/></label><div className="task-dialog-grid"><label>归属项目<input value={projectName} onChange={event => setProjectName(event.target.value)} placeholder="输入项目名称"/></label><label>实际时长（分钟）<input type="number" min="1" max="1440" value={durationMinutes} onChange={event => setDurationMinutes(Number(event.target.value))}/></label></div><div className="duration-presets">{[30,60,90,120].map(minutes => <button key={minutes} className={durationMinutes === minutes ? "active" : ""} onClick={() => setDurationMinutes(minutes)}>{minutes < 60 ? `${minutes} 分钟` : `${minutes / 60} 小时`}</button>)}</div><label>结果或备注（可选）<textarea value={summary} onChange={event => setSummary(event.target.value)} placeholder="填写结论、产出或后续事项，生成日报时会自动引用。"/></label>{error && <p className="task-dialog-error">{error}</p>}<div className="task-dialog-actions"><button onClick={onClose}>取消</button><button className="primary-action" onClick={submit}>保存到今日工作</button></div></section></div>;
 }

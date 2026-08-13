@@ -14,6 +14,7 @@ pub enum AiProvider {
 pub struct AiGenerateRequest {
     pub provider: AiProvider,
     pub base_url: Option<String>,
+    pub proxy_url: Option<String>,
     pub model: String,
     pub prompt: String,
 }
@@ -44,8 +45,12 @@ pub fn generate(request: AiGenerateRequest) -> Result<AiGenerateResponse, String
         })),
         AiProvider::Codex => unreachable!(),
     };
+    let proxy = request.proxy_url.as_deref().filter(|value| !value.trim().is_empty())
+        .map(|value| ureq::Proxy::new(value).map_err(|_| "代理地址无效，请填写 http://、https:// 或 socks5:// 地址".to_string()))
+        .transpose()?;
     let config = ureq::Agent::config_builder()
         .timeout_global(Some(std::time::Duration::from_secs(90)))
+        .proxy(proxy)
         .build();
     let agent: ureq::Agent = config.into();
     let mut builder = agent.post(&endpoint).header("Content-Type", "application/json");
@@ -141,17 +146,24 @@ fn validate_url(value: &str, loopback_only: bool) -> Result<String, String> {
 
 fn safe_http_error(error: ureq::Error) -> String {
     match error {
+        ureq::Error::StatusCode(401) | ureq::Error::StatusCode(403) => "认证失败：请检查 API Key 是否有效且具有该模型权限".into(),
+        ureq::Error::StatusCode(404) => "模型或接口地址不存在：请检查模型名称和接口地址".into(),
+        ureq::Error::StatusCode(429) => "请求受限：可能是额度不足、余额不足或触发频率限制".into(),
         ureq::Error::StatusCode(code) => format!("模型接口返回 HTTP {code}"),
-        other => format!("无法连接模型接口: {other}"),
+        ureq::Error::Timeout(_) => "连接模型接口超时，请检查网络或代理设置".into(),
+        other => format!("无法连接模型接口，请检查网络或代理设置：{other}"),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{endpoint, AiGenerateRequest, AiProvider};
+    use super::{endpoint, generate, safe_http_error, AiGenerateRequest, AiProvider};
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::thread;
 
     fn request(provider: AiProvider, base_url: Option<&str>) -> AiGenerateRequest {
-        AiGenerateRequest { provider, base_url: base_url.map(str::to_string), model: "test".into(), prompt: "test".into() }
+        AiGenerateRequest { provider, base_url: base_url.map(str::to_string), proxy_url: None, model: "test".into(), prompt: "test".into() }
     }
 
     #[test]
@@ -159,5 +171,43 @@ mod tests {
         assert_eq!(endpoint(&request(AiProvider::Openai, None)).unwrap(), "https://api.openai.com/v1/responses");
         assert!(endpoint(&request(AiProvider::Ollama, Some("http://127.0.0.1:11434/api/chat"))).is_ok());
         assert!(endpoint(&request(AiProvider::Ollama, Some("http://example.com/api/chat"))).is_err());
+    }
+
+    #[test]
+    fn local_model_success_response_is_parsed() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = Vec::new();
+            let mut buffer = [0_u8; 1024];
+            loop {
+                let count = stream.read(&mut buffer).unwrap();
+                request.extend_from_slice(&buffer[..count]);
+                let Some(header_end) = request.windows(4).position(|part| part == b"\r\n\r\n") else { continue };
+                let headers = String::from_utf8_lossy(&request[..header_end]);
+                let content_length = headers.lines().find_map(|line| line.to_ascii_lowercase().strip_prefix("content-length:").map(str::trim).and_then(|value| value.parse::<usize>().ok())).unwrap_or(0);
+                if request.len() >= header_end + 4 + content_length { break; }
+            }
+            let body = r#"{"message":{"content":"连接成功"}}"#;
+            write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body).unwrap();
+            stream.flush().unwrap();
+        });
+        let response = generate(AiGenerateRequest {
+            provider: AiProvider::Ollama,
+            base_url: Some(format!("http://{address}/api/chat")),
+            proxy_url: None,
+            model: "local-test".into(),
+            prompt: "test".into(),
+        }).unwrap();
+        server.join().unwrap();
+        assert_eq!(response.content, "连接成功");
+    }
+
+    #[test]
+    fn model_http_errors_are_actionable() {
+        assert!(safe_http_error(ureq::Error::StatusCode(401)).contains("API Key"));
+        assert!(safe_http_error(ureq::Error::StatusCode(404)).contains("模型"));
+        assert!(safe_http_error(ureq::Error::StatusCode(429)).contains("额度"));
     }
 }

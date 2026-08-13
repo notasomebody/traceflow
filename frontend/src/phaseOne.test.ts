@@ -71,8 +71,8 @@ describe("本地后端启动窗口", () => {
   it("写操作前等待健康接口", async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = (async (input: RequestInfo | URL) => {
-      expect(String(input)).toBe("http://127.0.0.1:17890/actuator/health");
-      return new Response('{"status":"UP"}', { status: 200 });
+      expect(String(input)).toBe("http://127.0.0.1:17890/api/projects");
+      return new Response('[]', { status: 200 });
     }) as typeof fetch;
     await expect(waitForLocalApi("http://127.0.0.1:17890/api")).resolves.toBeUndefined();
     globalThis.fetch = originalFetch;

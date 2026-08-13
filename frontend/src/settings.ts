@@ -14,6 +14,7 @@ export type AppSettings = {
   aiProvider: AiProvider;
   aiModel: string;
   aiBaseUrl: string;
+  aiProxyUrl: string;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -29,6 +30,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   aiProvider: "OPENAI",
   aiModel: "gpt-5.4-mini",
   aiBaseUrl: "",
+  aiProxyUrl: "",
 };
 
 const SETTINGS_KEY = "traceflow.settings.v1";

@@ -21,9 +21,16 @@ public class LocalApiConfiguration implements WebMvcConfigurer {
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
+        String[] desktopOrigins = {
+                "http://localhost:1420",
+                "http://127.0.0.1:1420",
+                "http://tauri.localhost",
+                "https://tauri.localhost",
+                "tauri://localhost"
+        };
         registry.addMapping("/api/**")
-                .allowedOrigins("http://localhost:1420", "http://127.0.0.1:1420", "tauri://localhost")
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS");
+                .allowedOrigins(desktopOrigins)
+                .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
     }
 
     @Override

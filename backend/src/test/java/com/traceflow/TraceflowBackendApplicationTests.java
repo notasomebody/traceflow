@@ -13,8 +13,10 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
@@ -40,6 +42,22 @@ class TraceflowBackendApplicationTests {
 
     @Test
     void contextLoads() {
+    }
+
+    @Test
+    void installedDesktopOriginCanUseTheLocalApi() throws Exception {
+        mvc.perform(options("/api/reports/daily/generate")
+                        .header("Origin", "http://tauri.localhost")
+                        .header("Access-Control-Request-Method", "POST")
+                        .header("Access-Control-Request-Headers", "content-type"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://tauri.localhost"))
+                .andExpect(header().string("Access-Control-Allow-Methods", org.hamcrest.Matchers.containsString("POST")));
+        mvc.perform(get("/api/dashboard")
+                        .param("date", "2026-08-13")
+                        .header("Origin", "http://tauri.localhost"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://tauri.localhost"));
     }
 
     @Test
