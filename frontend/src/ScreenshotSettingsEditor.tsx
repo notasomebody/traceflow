@@ -2,7 +2,7 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { Camera, Eye, LoaderCircle, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 
-type ScreenshotSettings = { enabled: boolean; interval_minutes: number; retain_raw_days: number };
+type ScreenshotSettings = { uia_enabled: boolean; enabled: boolean; interval_minutes: number; retain_raw_days: number };
 type ScreenshotPreview = { image_path?: string; ocr_text: string };
 const isDesktop = () => "__TAURI_INTERNALS__" in window;
 
@@ -39,8 +39,9 @@ export default function ScreenshotSettingsEditor() {
   if (!isDesktop()) return <section className="screenshot-settings unavailable"><Camera/><div><strong>活动窗口截图</strong><span>仅 Windows 桌面版可用，默认关闭</span></div></section>;
   if (!settings) return <section className="screenshot-settings"><LoaderCircle className="spin"/><span>读取截图隐私设置…</span></section>;
   return <section className="screenshot-settings">
-    <div className="screenshot-title"><Camera/><div><strong>活动窗口截图识别</strong><span>默认关闭；不截全屏，不自动上传</span></div></div>
-    <label className="toggle-row"><span><strong>允许定时截取活动窗口</strong><small>开启后仍会跳过密码管理器、登录和提权窗口</small></span><input type="checkbox" checked={settings.enabled} onChange={event => update("enabled", event.target.checked)}/></label>
+    <div className="screenshot-title"><Camera/><div><strong>本地内容识别</strong><span>UI Automation 优先；本地 OCR 经单独授权后兜底</span></div></div>
+    <label className="toggle-row"><span><strong>允许读取活动窗口的 UI Automation 文本</strong><small>不截图、不读取密码控件，内容只写入本机</small></span><input type="checkbox" checked={settings.uia_enabled} onChange={event => update("uia_enabled", event.target.checked)}/></label>
+    <label className="toggle-row"><span><strong>允许 UIA 无有效内容时截图 OCR</strong><small>必须先开启上项；仍会跳过密码管理器、登录和提权窗口</small></span><input type="checkbox" checked={settings.enabled} disabled={!settings.uia_enabled} onChange={event => update("enabled", event.target.checked)}/></label>
     <label>采集频率：{settings.interval_minutes} 分钟<input type="range" min="1" max="30" value={settings.interval_minutes} onChange={event => update("interval_minutes", Number(event.target.value))}/></label>
     <label>原图保留<select value={settings.retain_raw_days} onChange={event => update("retain_raw_days", Number(event.target.value))}><option value="0">OCR 后立即删除（推荐）</option><option value="1">1 天</option><option value="3">3 天</option><option value="7">7 天</option></select></label>
     <div className="inline-actions"><button onClick={() => void save()}><ShieldCheck/>保存设置</button><button onClick={() => void capture()} disabled={busy}><Eye/>{busy ? "等待切换窗口" : "2 秒后手动预览"}</button></div>
