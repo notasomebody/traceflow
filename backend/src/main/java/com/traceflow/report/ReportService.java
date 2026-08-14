@@ -48,6 +48,13 @@ public class ReportService {
     }
 
     @Transactional
+    public ReportDraft importDaily(LocalDate date, String summary, String nextPlan, int targetMinutes) {
+        ReportDraft report = saveDraft(date, "DAILY", summary, nextPlan, targetMinutes, "IMPORTED", null);
+        saveSnapshot(report);
+        return report;
+    }
+
+    @Transactional
     public ReportDraft confirm(LocalDate date, String reportType, String summary, String nextPlan, int targetMinutes) {
         String normalizedType = normalizeType(reportType);
         if (find(date, normalizedType).isEmpty()) {

@@ -227,6 +227,23 @@ class TraceflowBackendApplicationTests {
     }
 
     @Test
+    void historicalDailyReportCanBeImportedAndReadBackEncrypted() throws Exception {
+        mvc.perform(post("/api/reports/daily/import")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\":\"2026-07-20\",\"summary\":\"企业微信历史日报正文\",\"nextPlan\":\"继续完成历史项目\",\"targetMinutes\":480}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.reportDate").value("2026-07-20"))
+                .andExpect(jsonPath("$.status").value("IMPORTED"));
+
+        mvc.perform(get("/api/reports/history").param("type", "DAILY"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].summary", org.hamcrest.Matchers.hasItem("企业微信历史日报正文")));
+        org.assertj.core.api.Assertions.assertThat(jdbc.sql("SELECT summary FROM report_draft WHERE report_date = '2026-07-20'")
+                        .query(String.class).single())
+                .startsWith("enc:v1:");
+    }
+
+    @Test
     void ocrTextIsEncryptedAtRestAndReadableThroughTheLocalApi() throws Exception {
         mvc.perform(post("/api/ocr/ingest")
                         .contentType(MediaType.APPLICATION_JSON)

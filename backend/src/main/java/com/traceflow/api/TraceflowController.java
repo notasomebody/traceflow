@@ -62,6 +62,12 @@ public class TraceflowController {
         return reports.confirm(request.date(), request.summary(), request.nextPlan(), request.targetMinutes());
     }
 
+    @PostMapping("/reports/daily/import")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ReportDraft importDaily(@Valid @RequestBody ConfirmReportRequest request) {
+        return reports.importDaily(request.date(), request.summary(), request.nextPlan(), request.targetMinutes());
+    }
+
     @PostMapping("/reports/weekly/generate")
     public PeriodReport generateWeekly(@Valid @RequestBody GenerateReportRequest request) {
         return reports.generateWeekly(request.date(), request.targetMinutes());

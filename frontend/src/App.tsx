@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, Bot, Check, Clipboard, Clock3, CloudCog, Database, FileClock, FileText, GitBranch, History, LayoutDashboard, LoaderCircle, Moon, Pause, Play, Plus, RefreshCw, Settings, Sparkles, TimerReset, WandSparkles } from "lucide-react";
+import { Activity, Bot, Check, Clipboard, Clock3, CloudCog, Database, FileClock, FileText, GitBranch, History, LayoutDashboard, LoaderCircle, MessageSquareText, Moon, Pause, Play, Plus, RefreshCw, Settings, Sparkles, TimerReset, WandSparkles } from "lucide-react";
 import "./App.css";
 import "./Onboarding.css";
 import "./PhaseOne.css";
@@ -14,6 +14,7 @@ import AiAssistantPanel from "./AiAssistantPanel";
 import ProjectInbox from "./ProjectInbox";
 import { localDateKey, shouldGenerateDaily } from "./reportScheduler";
 import { fetchLocal } from "./localApi";
+import WeComWorkspace from "./WeComWorkspace";
 
 type WorkEvent = { id:string; occurredAt:string; sourceType:string; sourceName:string; projectName:string; title:string; summary:string; evidenceLevel:string; durationMinutes:number; includedInReport:boolean };
 type Connector = { id:string; name:string; connectorType:string; enabled:boolean; privacyLevel:string; syncStatus:string; lastSyncedAt?:string };
@@ -39,6 +40,7 @@ export default function App() {
   const [notice,setNotice] = useState("正在连接本地服务…");
   const [monitorStatus,setMonitorStatus] = useState<MonitorStatus>("UNAVAILABLE");
   const [taskDialog,setTaskDialog] = useState<"会议" | "培训" | "手动补充" | null>(null);
+  const [page,setPage] = useState<"today" | "history" | "wecom">("today");
 
   const loadDashboard = useCallback(async (silent = false) => {
     if (!silent) setBusy(true);
@@ -170,10 +172,11 @@ export default function App() {
     <aside className="sidebar">
       <div className="brand"><img className="brand-mark" src="/brand/xiaoyou-icon.svg" alt="小鱿"/><div><strong>迹汇</strong><span>TraceFlow</span></div></div>
       <nav>
-        <button className="nav-item active"><LayoutDashboard size={19}/><span>今日工作</span></button>
-        <button className="nav-item" disabled title="一期请在今日工作页生成日报"><FileText size={19}/><span>日报周报</span><em>一期</em></button>
+        <button aria-label="今日工作" className={`nav-item ${page === "today" ? "active" : ""}`} onClick={() => setPage("today")}><LayoutDashboard size={19}/><span>今日工作</span></button>
+        <button aria-label="日报周报" className={`nav-item ${page === "history" ? "active" : ""}`} onClick={() => setPage("history")}><FileText size={19}/><span>日报周报</span><em>一期</em></button>
         <button className="nav-item" disabled title="二期功能"><TimerReset size={19}/><span>Jira 工时</span><em>二期</em></button>
-        <button className="nav-item" onClick={() => document.querySelector(".reports-workspace")?.scrollIntoView({ behavior: "smooth" })}><History size={19}/><span>历史记录</span><em>一期</em></button>
+        <button aria-label="历史记录" className={`nav-item ${page === "history" ? "active" : ""}`} onClick={() => setPage("history")}><History size={19}/><span>历史记录</span><em>一期</em></button>
+        <button aria-label="企业微信" className={`nav-item ${page === "wecom" ? "active" : ""}`} onClick={() => setPage("wecom")}><MessageSquareText size={19}/><span>企业微信</span><em>本机</em></button>
         <button className="nav-item" disabled title="二期功能"><Database size={19}/><span>自动数据源</span><em>二期</em></button>
         <button className="nav-item" disabled title="二期功能"><WandSparkles size={19}/><span>PPT 汇报</span><em>二期</em></button>
       </nav>
@@ -181,6 +184,7 @@ export default function App() {
     </aside>
 
     <main>
+      {page === "today" && <>
       <header className="topbar"><div><p className="eyebrow">WORKSPACE / TODAY</p><h1>今天的工作，已经有迹可循</h1></div><div className="top-actions">{monitorStatus === "COLLECTING" && <button className="sync-button monitor-pause" onClick={() => void pauseOneHour()}><Pause size={16}/>暂停 1 小时</button>}<button className={`sync-button monitor-toggle status-${monitorStatus.toLowerCase()}`} onClick={() => void toggleMonitoring()}>{monitorStatus === "COLLECTING" || monitorStatus === "IDLE" || monitorStatus === "PAUSED" ? <Pause size={16}/> : <Play size={16}/>}监控：{{COLLECTING:"采集中",IDLE:"空闲暂停",PAUSED:"已暂停",DISABLED:"已关闭",ERROR:"异常",UNAVAILABLE:"仅桌面版"}[monitorStatus]}</button><button className="icon-button" disabled title="一期固定使用深色模式"><Moon size={18}/></button><button className="sync-button" onClick={() => void loadDashboard()} disabled={busy}>{busy ? <LoaderCircle className="spin" size={17}/> : <RefreshCw size={17}/>}立即同步</button></div></header>
       <section className="status-strip"><span className="live-dot"/><strong>{notice}</strong><span className="status-time"><Clock3 size={15}/>{settings.generateAt} 自动生成 · {settings.submitAfter} 后确认提交</span></section>
 
@@ -210,9 +214,11 @@ export default function App() {
       </section>
 
       <section className="panel sources-panel"><div className="panel-heading"><div><p className="eyebrow">CONNECTORS</p><h2>数据源规划</h2></div><span className="phase-badge">二期功能 · 当前不可用</span></div><div className="source-grid">{(dashboard?.connectors ?? []).map(connector => <article key={connector.id} className={!connector.enabled ? "source-disabled" : ""}><div className="source-icon">{sourceIcon(connector.connectorType)}</div><div><h3>{connector.name}</h3><p>{connector.privacyLevel === "METADATA" ? "计划仅采集元数据" : connector.privacyLevel}</p></div><span className="source-warn">尚未开放</span></article>)}</div></section>
-      <ReportsWorkspace api={API} date={today}/>
       <ProjectInbox api={API} date={today}/>
       <AiAssistantPanel settings={settings} onChange={updateSettings} summary={summary} nextPlan={nextPlan}/>
+      </>}
+      {page === "history" && <ReportsWorkspace api={API} date={today}/>}
+      {page === "wecom" && <WeComWorkspace api={API}/>}
     </main>
     {showOnboarding && <Onboarding
       initial={settings}

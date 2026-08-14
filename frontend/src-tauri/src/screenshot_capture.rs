@@ -226,6 +226,24 @@ fn read_active_window_uia_text() -> Result<String, String> {
     read_uia_text_from_handle(window)
 }
 
+pub fn capture_active_window_uia_preview() -> Result<ScreenshotPreview, String> {
+    let text = read_active_window_uia_text()?;
+    if text.trim().is_empty() {
+        return Err("当前窗口没有可读取的 UI Automation 文本".into());
+    }
+    Ok(ScreenshotPreview {
+        image_path: None,
+        ocr_text: text,
+    })
+}
+
+pub fn is_wecom_application(application_name: &str) -> bool {
+    matches!(
+        application_name.to_ascii_lowercase().as_str(),
+        "wxwork.exe" | "wecom.exe"
+    )
+}
+
 #[cfg(windows)]
 fn read_uia_text_from_handle(window: windows::Win32::Foundation::HWND) -> Result<String, String> {
     use std::collections::HashSet;
@@ -576,6 +594,13 @@ mod tests {
             settings.decide_content_acquisition(false),
             ContentAcquisitionDecision::Skip
         );
+    }
+
+    #[test]
+    fn wecom_reader_is_restricted_to_known_client_processes() {
+        assert!(super::is_wecom_application("WXWork.exe"));
+        assert!(super::is_wecom_application("wecom.EXE"));
+        assert!(!super::is_wecom_application("Code.exe"));
     }
 
     #[test]
