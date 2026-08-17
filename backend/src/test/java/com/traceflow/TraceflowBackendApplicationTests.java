@@ -97,6 +97,20 @@ class TraceflowBackendApplicationTests {
     }
 
     @Test
+    void generatedReportUsesAuthorizedWorkFileContent() throws Exception {
+        mvc.perform(post("/api/events")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"occurredAt\":\"2026-08-16T14:00:00+08:00\",\"sourceType\":\"LOCAL_FILE\",\"sourceName\":\"本地工作文件\",\"projectName\":\"数据治理\",\"title\":\"更新验收说明.md\",\"summary\":\"完成异常数据校验并补充三项验收结论\",\"durationMinutes\":30}"))
+                .andExpect(status().isCreated());
+
+        mvc.perform(post("/api/reports/daily/generate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\":\"2026-08-16\",\"targetMinutes\":480}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary", org.hamcrest.Matchers.containsString("完成异常数据校验并补充三项验收结论")));
+    }
+
+    @Test
     void activityIsClassifiedAgainstUserProjectsOrSentToInbox() throws Exception {
         mvc.perform(post("/api/projects")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -205,6 +219,30 @@ class TraceflowBackendApplicationTests {
                 .andExpect(jsonPath("$[0].code").value("NEWFLOW"))
                 .andExpect(jsonPath("$[0].suggestedName").value("NEWFLOW"))
                 .andExpect(jsonPath("$[0].occurrenceCount").value(1));
+    }
+
+    @Test
+    void repeatedIssueKeyAutomaticallyCreatesAProjectAndReclassifiesItsEvidence() throws Exception {
+        for (int index = 1; index <= 3; index++) {
+            String body = String.format(java.util.Locale.ROOT,
+                    "{\"capturedAt\":\"2026-08-15T%02d:00:00+08:00\",\"applicationName\":\"Code.exe\",\"windowTitle\":\"AUTOCREATEUT-%d 自动项目工作\",\"durationSeconds\":120}",
+                    8 + index, index);
+            mvc.perform(post("/api/activity/ingest")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isCreated());
+        }
+
+        mvc.perform(get("/api/projects"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].code", org.hamcrest.Matchers.hasItem("AUTOCREATEUT")));
+        mvc.perform(get("/api/activity").param("date", "2026-08-15"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3))
+                .andExpect(jsonPath("$[*].projectName",
+                        org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.is("AUTOCREATEUT"))))
+                .andExpect(jsonPath("$[*].classification",
+                        org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.is("AUTO"))));
     }
 
     @Test

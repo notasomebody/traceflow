@@ -379,7 +379,7 @@ pub(crate) fn active_window() -> Option<ActiveWindow> {
 pub(crate) fn active_window() -> Option<ActiveWindow> { None }
 
 #[cfg(windows)]
-fn system_idle_seconds() -> u64 {
+pub(crate) fn system_idle_seconds() -> u64 {
     use windows::Win32::System::SystemInformation::GetTickCount;
     use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
     unsafe {
@@ -389,7 +389,7 @@ fn system_idle_seconds() -> u64 {
 }
 
 #[cfg(not(windows))]
-fn system_idle_seconds() -> u64 { 0 }
+pub(crate) fn system_idle_seconds() -> u64 { 0 }
 
 impl MonitorControl {
     pub fn set_enabled(&mut self, enabled: bool) {

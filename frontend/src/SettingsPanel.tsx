@@ -70,6 +70,9 @@ export default function SettingsPanel({ settings, supportEmail, onChange, onClos
         {tab === "automation" && <>
           <h3>自动整理</h3>
           <label className="toggle-row"><span><strong>自动采集并整理工作</strong><small>仅记录应用、窗口标题和活跃时长，不记录按键内容</small></span><input type="checkbox" checked={settings.monitoringEnabled} onChange={event => update("monitoringEnabled", event.target.checked)}/></label>
+          <label className="toggle-row"><span><strong>读取今天修改的工作文件正文</strong><small>只读工作目录中的文本类文件；自动排除密钥、凭据、构建目录和大文件</small></span><input type="checkbox" checked={settings.fileContentAuthorized} onChange={event => onChange({ ...settings, fileContentAuthorized:event.target.checked, metadataOnly:!event.target.checked })}/></label>
+          <label className="toggle-row"><span><strong>企业微信使用时被动学习</strong><small>仅在你打开汇报正文时读取；UI Automation 优先，本地 OCR 需另行授权</small></span><input type="checkbox" checked={settings.wecomPassiveCapture} onChange={event => update("wecomPassiveCapture", event.target.checked)}/></label>
+          <label className="toggle-row"><span><strong>空闲时补齐企业微信历史</strong><small>你一操作电脑就暂停，并从已保存进度继续</small></span><input type="checkbox" checked={settings.wecomIdleSync} onChange={event => update("wecomIdleSync", event.target.checked)}/></label>
           <ScreenshotSettingsEditor/>
           <AiAssistantPanel settings={settings} onChange={onChange} summary="" nextPlan=""/>
         </>}

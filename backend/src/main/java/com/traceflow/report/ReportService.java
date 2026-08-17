@@ -199,7 +199,10 @@ public class ReportService {
         Map<String, List<WorkEvent>> grouped = workEvents.stream().collect(Collectors.groupingBy(
                 WorkEvent::projectName, LinkedHashMap::new, Collectors.toList()));
         List<String> sections = new java.util.ArrayList<>(grouped.entrySet().stream().map(entry -> {
-            String items = entry.getValue().stream().map(WorkEvent::title).distinct().collect(Collectors.joining("；"));
+            String items = entry.getValue().stream().map(item -> {
+                String detail = item.summary() == null ? "" : item.summary().strip();
+                return detail.isBlank() || item.title().contains(detail) ? item.title() : item.title() + "：" + detail;
+            }).distinct().collect(Collectors.joining("；"));
             return "【" + entry.getKey() + "】" + items + "。";
         }).toList());
 

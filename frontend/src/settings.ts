@@ -15,6 +15,10 @@ export type AppSettings = {
   aiModel: string;
   aiBaseUrl: string;
   aiProxyUrl: string;
+  fileContentAuthorized: boolean;
+  wecomPassiveCapture: boolean;
+  wecomIdleSync: boolean;
+  wecomHistoryDays: number;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -31,6 +35,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   aiModel: "gpt-5-mini",
   aiBaseUrl: "",
   aiProxyUrl: "",
+  fileContentAuthorized: false,
+  wecomPassiveCapture: true,
+  wecomIdleSync: true,
+  wecomHistoryDays: 90,
 };
 
 const SETTINGS_KEY = "traceflow.settings.v1";

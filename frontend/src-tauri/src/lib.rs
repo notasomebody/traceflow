@@ -10,12 +10,16 @@ use tauri::{
 };
 
 mod activity_monitor;
+mod auto_organizer;
 mod screenshot_capture;
 mod credential_store;
 mod ai_provider;
 mod wecom_api;
+mod wecom_history;
 use activity_monitor::{CapturePolicy, MonitorRuntime, MonitorStatus};
+use auto_organizer::{AutoOrganizerRuntime, AutoOrganizerSettings, AutoOrganizerStatus};
 use screenshot_capture::{ScreenshotPreview, ScreenshotRuntime, ScreenshotSettings};
+use wecom_history::{WeComHistoryRuntime, WeComHistoryStatus};
 
 struct BackendProcess {
     child: Mutex<Option<Child>>,
@@ -110,6 +114,42 @@ fn capture_wecom_uia_preview(delay_seconds: u64, screenshots: tauri::State<'_, S
 }
 
 #[tauri::command]
+fn auto_organizer_settings(state: tauri::State<'_, AutoOrganizerRuntime>) -> Result<AutoOrganizerSettings, String> {
+    state.settings()
+}
+
+#[tauri::command]
+fn set_auto_organizer_settings(settings: AutoOrganizerSettings, state: tauri::State<'_, AutoOrganizerRuntime>) -> Result<AutoOrganizerSettings, String> {
+    state.save_settings(settings)
+}
+
+#[tauri::command]
+fn auto_organizer_status(state: tauri::State<'_, AutoOrganizerRuntime>) -> Result<AutoOrganizerStatus, String> {
+    state.status()
+}
+
+#[tauri::command]
+async fn scan_work_artifacts_now(state: tauri::State<'_, AutoOrganizerRuntime>) -> Result<AutoOrganizerStatus, String> {
+    let runtime = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || runtime.scan_now()).await.map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+fn wecom_history_status(state: tauri::State<'_, WeComHistoryRuntime>) -> Result<WeComHistoryStatus, String> {
+    state.status()
+}
+
+#[tauri::command]
+fn start_wecom_history_sync(history_days: u16, history: tauri::State<'_, WeComHistoryRuntime>, screenshots: tauri::State<'_, ScreenshotRuntime>) -> Result<WeComHistoryStatus, String> {
+    history.start_history_sync(history_days, screenshots.inner().clone())
+}
+
+#[tauri::command]
+fn stop_wecom_history_sync(state: tauri::State<'_, WeComHistoryRuntime>) -> Result<WeComHistoryStatus, String> {
+    state.stop()
+}
+
+#[tauri::command]
 fn save_ai_secret(secret_id: String, value: String) -> Result<bool, String> {
     credential_store::save_secret(&secret_id, &value)?;
     Ok(true)
@@ -191,14 +231,18 @@ fn set_autostart(enabled: bool) -> Result<bool, String> {
 }
 
 #[tauri::command]
-fn clear_desktop_private_data(app: tauri::AppHandle, monitor: tauri::State<'_, MonitorRuntime>, screenshots: tauri::State<'_, ScreenshotRuntime>) -> Result<bool, String> {
+fn clear_desktop_private_data(app: tauri::AppHandle, monitor: tauri::State<'_, MonitorRuntime>, screenshots: tauri::State<'_, ScreenshotRuntime>, organizer: tauri::State<'_, AutoOrganizerRuntime>, history: tauri::State<'_, WeComHistoryRuntime>) -> Result<bool, String> {
     monitor.set_enabled(false)?;
+    let mut organizer_settings = organizer.settings()?;
+    organizer_settings.enabled = false;
+    organizer.save_settings(organizer_settings)?;
+    let _ = history.stop();
     let mut settings = screenshots.settings()?;
     settings.enabled = false;
     screenshots.save_settings(settings)?;
     for secret in ["openai", "compatible", "codex", "wecom-report"] { let _ = credential_store::delete_secret(secret); }
     let data_dir = app.path().app_data_dir().map_err(|error| error.to_string())?;
-    for name in ["screenshots", "traceflow-backend.log"] {
+    for name in ["screenshots", "traceflow-backend.log", "auto-organizer-settings.json", "auto-organizer-cursor.json", "wecom-history-fingerprints.json"] {
         let path = data_dir.join(name);
         if path.is_dir() { std::fs::remove_dir_all(path).map_err(|error| error.to_string())?; }
         else if path.exists() { std::fs::remove_file(path).map_err(|error| error.to_string())?; }
@@ -295,7 +339,13 @@ pub fn run() {
             app.manage(monitor);
             let screenshots = ScreenshotRuntime::new(&data_dir);
             screenshots.start(app.state::<MonitorRuntime>().inner().clone());
+            let organizer = AutoOrganizerRuntime::new(data_dir.clone());
+            organizer.start();
+            let wecom_history = WeComHistoryRuntime::new(data_dir.clone());
+            wecom_history.start_passive_capture(organizer.clone(), screenshots.clone());
             app.manage(screenshots);
+            app.manage(organizer);
+            app.manage(wecom_history);
 
             let open_item = MenuItem::with_id(app, "open", "打开迹汇", true, None::<&str>)?;
             let collect_item = MenuItem::with_id(app, "collect", "开始采集", true, None::<&str>)?;
@@ -331,7 +381,7 @@ pub fn run() {
                 .build(app)?;
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![monitor_status, set_monitor_enabled, pause_monitor, capture_policy, set_capture_policy, screenshot_settings, set_screenshot_settings, capture_screenshot_preview, capture_wecom_uia_preview, save_ai_secret, ai_secret_status, delete_ai_secret, generate_with_ai, test_wecom_connection, fetch_wecom_reports, autostart_status, set_autostart, clear_desktop_private_data])
+        .invoke_handler(tauri::generate_handler![monitor_status, set_monitor_enabled, pause_monitor, capture_policy, set_capture_policy, screenshot_settings, set_screenshot_settings, capture_screenshot_preview, capture_wecom_uia_preview, auto_organizer_settings, set_auto_organizer_settings, auto_organizer_status, scan_work_artifacts_now, wecom_history_status, start_wecom_history_sync, stop_wecom_history_sync, save_ai_secret, ai_secret_status, delete_ai_secret, generate_with_ai, test_wecom_connection, fetch_wecom_reports, autostart_status, set_autostart, clear_desktop_private_data])
         .build(tauri::generate_context!())
         .expect("无法创建迹汇桌面应用");
 

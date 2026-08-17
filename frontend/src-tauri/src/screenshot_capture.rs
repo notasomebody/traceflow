@@ -235,7 +235,7 @@ impl ScreenshotRuntime {
 }
 
 #[cfg(windows)]
-fn read_active_window_uia_text() -> Result<String, String> {
+pub(crate) fn read_active_window_uia_text() -> Result<String, String> {
     use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
     let window = unsafe { GetForegroundWindow() };
     if window.0.is_null() {
@@ -348,7 +348,7 @@ fn read_uia_text_from_handle(window: windows::Win32::Foundation::HWND) -> Result
 }
 
 #[cfg(not(windows))]
-fn read_active_window_uia_text() -> Result<String, String> {
+pub(crate) fn read_active_window_uia_text() -> Result<String, String> {
     Err("UI Automation 内容读取仅支持 Windows".into())
 }
 

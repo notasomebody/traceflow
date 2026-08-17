@@ -86,8 +86,8 @@ public class ActivityModule {
                 .param("confidence", match.confidence())
                 .param("createdAt", OffsetDateTime.now().toString())
                 .update();
-        return new ActivityObservation(id, request.capturedAt(), request.applicationName(), request.windowTitle(),
-                request.durationSeconds(), match.projectId(), match.projectName(), match.classification(), match.confidence());
+        autoCreateRepeatedProject(request.windowTitle());
+        return observation(id);
     }
 
     public List<ProjectDefinition> projects() {
@@ -316,6 +316,34 @@ public class ActivityModule {
         return keywordMatched ? new Match(project.id(), project.name(), "AUTO", 0.95) : null;
     }
 
+    private void autoCreateRepeatedProject(String latestTitle) {
+        var latestMatcher = ISSUE_KEY.matcher(latestTitle);
+        if (!latestMatcher.find()) return;
+        String code = latestMatcher.group(1).toUpperCase(Locale.ROOT);
+        if (projects().stream().anyMatch(project -> project.code().equalsIgnoreCase(code))) return;
+
+        List<PendingTitle> matching = jdbc.sql("""
+                SELECT id, window_title FROM activity_observation
+                WHERE classification = 'PENDING'
+                ORDER BY captured_at DESC
+                """).query((rs, rowNum) -> new PendingTitle(
+                        rs.getString("id"), sensitiveText.decrypt(rs.getString("window_title"))
+                )).list().stream().filter(item -> {
+                    var matcher = ISSUE_KEY.matcher(item.title());
+                    return matcher.find() && matcher.group(1).equalsIgnoreCase(code);
+                }).toList();
+        if (matching.size() < 3) return;
+
+        ProjectDefinition project = createProject(new CreateProjectRequest(code, code, List.of(code)));
+        matching.forEach(item -> jdbc.sql("""
+                UPDATE activity_observation
+                SET project_id = :projectId, project_name = :projectName,
+                    classification = 'AUTO', confidence = 0.90
+                WHERE id = :id
+                """).param("projectId", project.id()).param("projectName", project.name())
+                .param("id", item.id()).update());
+    }
+
     private static String canonical(String value) {
         return value == null ? "" : value.toLowerCase(Locale.ROOT)
                 .replaceAll("[^\\p{L}\\p{N}]", "");
@@ -326,5 +354,8 @@ public class ActivityModule {
     }
 
     private record Match(String projectId, String projectName, String classification, double confidence) {
+    }
+
+    private record PendingTitle(String id, String title) {
     }
 }

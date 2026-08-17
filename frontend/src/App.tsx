@@ -14,6 +14,7 @@ import ProjectInbox from "./ProjectInbox";
 import { localDateKey, shouldGenerateDaily } from "./reportScheduler";
 import { fetchLocal } from "./localApi";
 import { listDraftVersions, loadLocalDraft, saveLocalDraft } from "./draftHistory";
+import { applyAutoOrganizerSettings, scanWorkArtifactsNow } from "./autoOrganizer";
 
 type WorkEvent = { id:string; occurredAt:string; sourceType:string; sourceName:string; projectName:string; title:string; summary:string; evidenceLevel:string; durationMinutes:number; includedInReport:boolean };
 type Connector = { id:string; name:string; connectorType:string; enabled:boolean; privacyLevel:string; syncStatus:string; lastSyncedAt?:string };
@@ -77,6 +78,9 @@ export default function App() {
     const timer = window.setInterval(() => void refresh(), 5000);
     return () => { active = false; window.clearInterval(timer); };
   }, []);
+  useEffect(() => {
+    void applyAutoOrganizerSettings(settings).catch(() => setNotice("自动整理设置加载失败，请在设置中重试"));
+  }, [settings]);
 
   function updateSettings(next: AppSettings) {
     if (next.monitoringEnabled !== settings.monitoringEnabled) {
@@ -87,6 +91,7 @@ export default function App() {
 
   function completeOnboarding(next: AppSettings) {
     updateSettings(next); markOnboardingCompleted(); setShowOnboarding(false);
+    void applyAutoOrganizerSettings(next).then(scanWorkArtifactsNow).then(() => loadDashboard(true)).catch(() => setNotice("已开启监控；工作文件会在本地服务就绪后自动整理"));
   }
 
   async function toggleMonitoring() {
@@ -100,6 +105,17 @@ export default function App() {
 
   async function pauseOneHour() {
     try { setMonitorStatus(await pauseMonitor(60)); setNotice("监控已暂停 1 小时"); } catch { setNotice("暂停失败"); }
+  }
+
+  async function organizeNow() {
+    setBusy(true);
+    try {
+      await scanWorkArtifactsNow();
+      await loadDashboard(true);
+      setNotice("已整理最新窗口活动和工作文件");
+    } catch {
+      setNotice("整理失败：请确认本地服务已启动");
+    } finally { setBusy(false); }
   }
 
   async function generateReport() {
@@ -197,7 +213,7 @@ export default function App() {
 
     <main>
       {page === "today" && <>
-      <header className="topbar"><div><p className="eyebrow">WORKSPACE / TODAY</p><h1>今天的工作，已经有迹可循</h1></div><div className="top-actions">{monitorStatus === "COLLECTING" && <button className="sync-button monitor-pause" onClick={() => void pauseOneHour()}><Pause size={16}/>暂停 1 小时</button>}<button className={`sync-button monitor-toggle status-${monitorStatus.toLowerCase()}`} onClick={() => void toggleMonitoring()}>{monitorStatus === "COLLECTING" || monitorStatus === "IDLE" || monitorStatus === "PAUSED" ? <Pause size={16}/> : <Play size={16}/>}监控：{{COLLECTING:"采集中",IDLE:"空闲暂停",PAUSED:"已暂停",DISABLED:"已关闭",ERROR:"异常",UNAVAILABLE:"仅桌面版"}[monitorStatus]}</button><button className="icon-button" aria-label={theme === "dark" ? "切换到浅色模式" : "切换到深色模式"} onClick={toggleTheme}>{theme === "dark" ? <Sun size={18}/> : <Moon size={18}/>}</button><button className="sync-button" onClick={() => void loadDashboard()} disabled={busy}>{busy ? <LoaderCircle className="spin" size={17}/> : <RefreshCw size={17}/>}立即整理</button></div></header>
+      <header className="topbar"><div><p className="eyebrow">WORKSPACE / TODAY</p><h1>今天的工作，已经有迹可循</h1></div><div className="top-actions">{monitorStatus === "COLLECTING" && <button className="sync-button monitor-pause" onClick={() => void pauseOneHour()}><Pause size={16}/>暂停 1 小时</button>}<button className={`sync-button monitor-toggle status-${monitorStatus.toLowerCase()}`} onClick={() => void toggleMonitoring()}>{monitorStatus === "COLLECTING" || monitorStatus === "IDLE" || monitorStatus === "PAUSED" ? <Pause size={16}/> : <Play size={16}/>}监控：{{COLLECTING:"采集中",IDLE:"空闲暂停",PAUSED:"已暂停",DISABLED:"已关闭",ERROR:"异常",UNAVAILABLE:"仅桌面版"}[monitorStatus]}</button><button className="icon-button" aria-label={theme === "dark" ? "切换到浅色模式" : "切换到深色模式"} onClick={toggleTheme}>{theme === "dark" ? <Sun size={18}/> : <Moon size={18}/>}</button><button className="sync-button" onClick={() => void organizeNow()} disabled={busy}>{busy ? <LoaderCircle className="spin" size={17}/> : <RefreshCw size={17}/>}立即整理</button></div></header>
       <section className="status-strip"><span className="live-dot"/><strong>{notice}</strong><span className="status-time"><Clock3 size={15}/>{settings.generateAt} 自动生成 · {settings.submitAfter} 后确认提交</span></section>
       <section className="day-summary"><BriefcaseBusiness size={16}/><span>{dashboard?.events.length ?? 0} 条有效记录</span><i/> <span>{minutesLabel(dashboard?.allocatedMinutes ?? 0)} 已归集</span><i/><strong>{confirmed ? "日报已确认" : "日报待确认"}</strong></section>
 

@@ -1,6 +1,7 @@
-import { Check, ClipboardPaste, Eye, KeyRound, LoaderCircle, MessageSquareText, ShieldCheck } from "lucide-react";
+import { Check, ClipboardPaste, Eye, History, KeyRound, LoaderCircle, MessageSquareText, ShieldCheck, Square } from "lucide-react";
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { getWeComHistoryStatus, startWeComHistorySync, stopWeComHistorySync, type WeComHistoryStatus } from "./autoOrganizer";
 
 type ImportedReport = { reportDate: string; summary: string; nextPlan: string; targetMinutes: number; status: string };
 type Journal = { journalUuid: string; templateName: string; reportTime: number; submitter: string; textContent: string };
@@ -27,10 +28,26 @@ export default function WeComWorkspace({ api }: { api: string }) {
   const [startDate,setStartDate] = useState(dateValue(-7));
   const [endDate,setEndDate] = useState(dateValue());
   const [journals,setJournals] = useState<Journal[]>([]);
+  const [historyStatus,setHistoryStatus] = useState<WeComHistoryStatus | null>(null);
 
   useEffect(() => {
     if (desktop()) void invoke<boolean>("ai_secret_status", { secretId:"wecom-report" }).then(setHasSecret).catch(() => setHasSecret(false));
   }, []);
+  useEffect(() => {
+    if (!desktop()) return;
+    const refresh = () => void getWeComHistoryStatus().then(status => {
+      if (status) { setHistoryStatus(status); if (status.message) setMessage(status.message); }
+    }).catch(() => undefined);
+    refresh();
+    const timer = window.setInterval(refresh, 500);
+    return () => window.clearInterval(timer);
+  }, []);
+  const startHistory = async () => {
+    setMessage("请在 3 秒内切换到企业微信汇报列表。读取期间一旦操作电脑，迹汇会自动暂停。");
+    try { setHistoryStatus(await startWeComHistorySync(90)); }
+    catch (error) { setMessage(String(error)); }
+  };
+  const stopHistory = async () => { await stopWeComHistorySync(); setMessage("历史读取已停止，进度已保存"); };
   const paste = async () => {
     try { setSummary(await navigator.clipboard.readText()); setMessage("已粘贴，请检查并拆分总结与计划"); }
     catch { setMessage("无法读取剪贴板，请检查系统权限或手动粘贴"); }
@@ -83,9 +100,16 @@ export default function WeComWorkspace({ api }: { api: string }) {
   };
 
   return <section className="integration-page">
-    <header className="integration-hero"><div className="integration-icon"><MessageSquareText/></div><div><p className="eyebrow">WECOM</p><h1>企业微信汇报</h1><p>普通用户读取当前窗口；管理员授权后可通过官方接口批量读取历史。</p></div></header>
+    <header className="integration-hero"><div className="integration-icon"><MessageSquareText/></div><div><p className="eyebrow">WECOM</p><h1>企业微信汇报</h1><p>普通用户可在空闲时自动补齐历史；管理员授权后也可使用官方接口。</p></div></header>
     <section className="panel import-card">
       <div className="privacy-note"><ShieldCheck/><span>默认不扫描企业微信。只有你主动读取、粘贴或通过官方接口选择的内容才会进入本机加密数据库。</span></div>
+      <div className="wecom-history-card">
+        <div><History/><span><strong>自动补齐历史汇报</strong><small>打开企业微信汇报列表后启动。只读列表和正文，绝不点击编辑、删除、提交或发送。</small></span></div>
+        <div className="wecom-history-progress"><span>已查看 {historyStatus?.visitedRows ?? 0} 条</span><span>已导入 {historyStatus?.importedReports ?? 0} 篇</span></div>
+        {historyStatus && !["IDLE","COMPLETED","ERROR"].includes(historyStatus.stage)
+          ? <button onClick={() => void stopHistory()}><Square/>停止历史读取</button>
+          : <button className="primary-action" onClick={() => void startHistory()}><History/>自动补齐最近 90 天汇报</button>}
+      </div>
       <div className="wecom-quick-actions"><button aria-label="读取当前企业微信" onClick={() => void readCurrentWeCom()} disabled={reading}>{reading ? <LoaderCircle className="spin"/> : <Eye/>}智能读取当前汇报</button><button onClick={() => void paste()}><ClipboardPaste/>从剪贴板粘贴</button></div>
       <label>日报日期<input type="date" value={date} onChange={event => setDate(event.target.value)}/></label>
       <label>今日工作总结<textarea value={summary} onChange={event => setSummary(event.target.value)} placeholder="读取、粘贴或手动填写…"/></label>

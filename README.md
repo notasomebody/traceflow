@@ -26,19 +26,19 @@
 
 项目地址：[GitHub notasomebody/traceflow](https://github.com/notasomebody/traceflow)
 
-希望尽量少操作时，直接把项目地址和 [Codex 自动接管版用户手册](docs/迹汇用户手册_Codex自动接管版.md) 交给 Codex。它会从 [最新稳定版 Release](https://github.com/notasomebody/traceflow/releases/latest) 自动下载并校验安装包，不克隆源码；安装启动后，再整理用户指定范围内的历史日报和 Jira 导出，生成一次总预览，并在确认后写入本机迹汇。
+希望尽量少操作时，直接把项目地址和 [零整理自动接管版用户手册](docs/迹汇用户手册_零整理自动接管版.md) 交给 Codex。它会从 [最新稳定版 Release](https://github.com/notasomebody/traceflow/releases/latest) 自动下载并校验安装包，不克隆源码；安装启动后开启自动整理，并协助完成企业微信历史汇报的只读补齐。
 
 可以直接对 Codex 说：
 
 ```text
-请按照 https://github.com/notasomebody/traceflow 中的《迹汇用户手册：Codex 自动接管版》帮我一条龙安装和初始化迹汇。只下载最新稳定版 Release，不克隆源码；先校验 SHA-256，再安装和启动。需要 Windows 安全确认、选择资料范围、登录外部系统或最终导入时再让我操作，其他步骤直接完成。
+请按照 https://github.com/notasomebody/traceflow/blob/main/docs/迹汇用户手册_零整理自动接管版.md 帮我一条龙安装和初始化迹汇。只下载最新稳定版 Release，不克隆源码；先校验 SHA-256，再安装和启动。需要 Windows 安全确认、登录外部系统、正文读取授权或外部写入时再让我操作，其他步骤直接完成。
 ```
 
 手动安装：
 
 1. 从 [GitHub Releases](https://github.com/notasomebody/traceflow/releases/latest) 下载 Windows x64 安装包和 `SHA256SUMS.txt`。
 2. 双击安装并启动“迹汇 TraceFlow”。
-3. 首次向导只需确认工作时间、是否开启本机监控和生成方式；全部保持默认也可直接开始。
+3. 首次向导只需确认工作时间与是否授权读取今天修改的工作文件正文，然后点击“开始自动整理”。
 4. 项目和外部服务可以稍后配置，不会阻挡自动整理。
 5. 每天下班前检查小鱿整理的草稿，确认后再提交。
 
@@ -47,7 +47,7 @@
 ## 历史日报与企业微信
 
 - 点击“汇报中心”→“导入历史日报”，填写日期、工作总结和下一步计划；确认后正文加密保存到本机数据库。
-- 点击“汇报中心”→“从企业微信导入”，可读取当前窗口、粘贴内容，或使用管理员授权的官方接口读取历史汇报。
+- 点击“汇报中心”→“从企业微信导入”，可空闲补齐最近 90 天历史、读取当前窗口、粘贴内容，或使用管理员授权的官方接口读取历史汇报。
 - 自动读取前，需在“设置 → 自动整理”单独开启 UI Automation。它只读取当前活动的企业微信窗口；本地 OCR 默认关闭，必须再次授权，识别完成后默认立即删除原图。
 - 当前版本不自动提交企业微信汇报；识别结果和导入内容必须由用户检查确认。
 
