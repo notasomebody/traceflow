@@ -1,5 +1,7 @@
 package com.traceflow.report;
 
+import com.traceflow.activity.ActivityModule;
+import com.traceflow.activity.ActivityObservation;
 import com.traceflow.security.SensitiveTextCipher;
 import com.traceflow.work.WorkEvent;
 import com.traceflow.work.WorkEventRepository;
@@ -20,11 +22,13 @@ import java.util.stream.Collectors;
 @Service
 public class ReportService {
     private final WorkEventRepository events;
+    private final ActivityModule activities;
     private final JdbcClient jdbc;
     private final SensitiveTextCipher sensitiveText;
 
-    public ReportService(WorkEventRepository events, JdbcClient jdbc, SensitiveTextCipher sensitiveText) {
+    public ReportService(WorkEventRepository events, ActivityModule activities, JdbcClient jdbc, SensitiveTextCipher sensitiveText) {
         this.events = events;
+        this.activities = activities;
         this.jdbc = jdbc;
         this.sensitiveText = sensitiveText;
     }
@@ -32,8 +36,11 @@ public class ReportService {
     @Transactional
     public ReportDraft generateDaily(LocalDate date, int targetMinutes) {
         List<WorkEvent> included = events.findByDate(date).stream().filter(WorkEvent::includedInReport).toList();
-        String summary = buildSummary(included);
-        String nextPlan = included.isEmpty()
+        List<ActivityObservation> observed = activities.observations(date).stream()
+                .filter(item -> item.durationSeconds() >= 60)
+                .toList();
+        String summary = buildSummary(included, observed);
+        String nextPlan = included.isEmpty() && observed.isEmpty()
                 ? "请补充明日计划。"
                 : "继续推进重点事项的验证与交付，及时同步风险和依赖，完成阶段性结果确认。";
         ReportDraft report = saveDraft(date, "DAILY", summary, nextPlan, targetMinutes, "DRAFT", null);
@@ -187,14 +194,40 @@ public class ReportService {
                 .param("status", report.status()).param("createdAt", OffsetDateTime.now().toString()).update();
     }
 
-    private String buildSummary(List<WorkEvent> workEvents) {
-        if (workEvents.isEmpty()) return "尚未采集到有效工作记录，请同步数据源或手动补充。";
+    private String buildSummary(List<WorkEvent> workEvents, List<ActivityObservation> observations) {
+        if (workEvents.isEmpty() && observations.isEmpty()) return "尚未采集到有效工作记录，请同步数据源或手动补充。";
         Map<String, List<WorkEvent>> grouped = workEvents.stream().collect(Collectors.groupingBy(
                 WorkEvent::projectName, LinkedHashMap::new, Collectors.toList()));
-        return grouped.entrySet().stream().map(entry -> {
+        List<String> sections = new java.util.ArrayList<>(grouped.entrySet().stream().map(entry -> {
             String items = entry.getValue().stream().map(WorkEvent::title).distinct().collect(Collectors.joining("；"));
             return "【" + entry.getKey() + "】" + items + "。";
-        }).collect(Collectors.joining("\n"));
+        }).toList());
+
+        Map<String, List<ActivityObservation>> monitored = observations.stream().collect(Collectors.groupingBy(
+                this::reportProjectName, LinkedHashMap::new, Collectors.toList()));
+        monitored.forEach((project, items) -> {
+            int minutes = Math.max(1, (int) Math.round(items.stream().mapToInt(ActivityObservation::durationSeconds).sum() / 60.0));
+            String topics = items.stream().map(ActivityObservation::windowTitle).map(this::cleanWindowTitle)
+                    .filter(value -> !value.isBlank()).distinct().limit(4).collect(Collectors.joining("；"));
+            if (!topics.isBlank()) sections.add("【" + project + "】推进" + topics + "等工作（约 " + minutes + " 分钟）。");
+        });
+        return String.join("\n", sections);
+    }
+
+    private String reportProjectName(ActivityObservation item) {
+        if (item.projectName() != null && item.projectName().startsWith("建议：")) {
+            return item.projectName().substring("建议：".length()) + "（待建立项目）";
+        }
+        if (item.projectName() == null || item.projectName().isBlank() || "待归类".equals(item.projectName())) {
+            return "其他工作";
+        }
+        return item.projectName();
+    }
+
+    private String cleanWindowTitle(String title) {
+        if (title == null) return "";
+        return title.replaceAll("\\s+-\\s+(Visual Studio Code|Microsoft Edge|Google Chrome|Codex)$", "")
+                .replaceAll("\\s+", " ").strip();
     }
 
     private String normalizeType(String reportType) {

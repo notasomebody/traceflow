@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, Bot, Check, Clipboard, Clock3, CloudCog, Database, FileClock, FileText, GitBranch, History, LayoutDashboard, LoaderCircle, MessageSquareText, Moon, Pause, Play, Plus, RefreshCw, Settings, Sparkles, TimerReset, WandSparkles } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Bot, BriefcaseBusiness, Check, Clipboard, Clock3, CloudCog, FileClock, FileText, FolderKanban, GitBranch, History, LayoutDashboard, ListChecks, LoaderCircle, Moon, Pause, Play, Plus, RefreshCw, Settings, Sparkles, Sun } from "lucide-react";
 import "./App.css";
 import "./Onboarding.css";
 import "./PhaseOne.css";
@@ -10,11 +10,10 @@ import { buildAiPrompt, buildReportText } from "./reportExport";
 import { recordUsage } from "./usageStats";
 import { getCapturePolicy, getMonitorStatus, pauseMonitor, setMonitorEnabled, type MonitorStatus } from "./desktopMonitor";
 import ReportsWorkspace from "./ReportsWorkspace";
-import AiAssistantPanel from "./AiAssistantPanel";
 import ProjectInbox from "./ProjectInbox";
 import { localDateKey, shouldGenerateDaily } from "./reportScheduler";
 import { fetchLocal } from "./localApi";
-import WeComWorkspace from "./WeComWorkspace";
+import { listDraftVersions, loadLocalDraft, saveLocalDraft } from "./draftHistory";
 
 type WorkEvent = { id:string; occurredAt:string; sourceType:string; sourceName:string; projectName:string; title:string; summary:string; evidenceLevel:string; durationMinutes:number; includedInReport:boolean };
 type Connector = { id:string; name:string; connectorType:string; enabled:boolean; privacyLevel:string; syncStatus:string; lastSyncedAt?:string };
@@ -26,6 +25,7 @@ const today = localDateKey();
 const sourceIcon = (type:string) => type === "GIT" ? <GitBranch size={17}/> : type === "BROWSER" || type === "JIRA" ? <CloudCog size={17}/> : type === "FILESYSTEM" ? <FileClock size={17}/> : <FileText size={17}/>;
 const formatTime = (value:string) => new Intl.DateTimeFormat("zh-CN", { hour:"2-digit", minute:"2-digit", hour12:false }).format(new Date(value));
 const minutesLabel = (minutes:number) => `${Math.floor(minutes / 60)}小时${minutes % 60 ? `${minutes % 60}分` : ""}`;
+const textOrEmpty = (value: unknown) => typeof value === "string" ? value : "";
 
 export default function App() {
   const [settings,setSettings] = useState<AppSettings>(() => loadSettings());
@@ -40,7 +40,10 @@ export default function App() {
   const [notice,setNotice] = useState("正在连接本地服务…");
   const [monitorStatus,setMonitorStatus] = useState<MonitorStatus>("UNAVAILABLE");
   const [taskDialog,setTaskDialog] = useState<"会议" | "培训" | "手动补充" | null>(null);
-  const [page,setPage] = useState<"today" | "history" | "wecom">("today");
+  const [page,setPage] = useState<"today" | "records" | "reports" | "projects">("today");
+  const [theme,setTheme] = useState<"dark" | "light">(() => localStorage.getItem("traceflow.theme") === "light" ? "light" : "dark");
+  const [dashboardLoaded,setDashboardLoaded] = useState(false);
+  const [showVersions,setShowVersions] = useState(false);
 
   const loadDashboard = useCallback(async (silent = false) => {
     if (!silent) setBusy(true);
@@ -48,8 +51,10 @@ export default function App() {
       const response = await fetchLocal(`${API}/dashboard?date=${today}`);
       if (!response.ok) throw new Error();
       const data:Dashboard = await response.json();
-      setDashboard(data); setSummary(data.report?.summary ?? ""); setNextPlan(data.report?.nextPlan ?? "");
+      const localDraft = loadLocalDraft(today);
+      setDashboard(data); setSummary(textOrEmpty(data.report?.summary ?? localDraft?.summary)); setNextPlan(textOrEmpty(data.report?.nextPlan ?? localDraft?.nextPlan));
       setTargetMinutes(data.report?.targetMinutes ?? settings.targetMinutes ?? data.targetMinutes ?? 480); setNotice("本地数据已同步");
+      setDashboardLoaded(true);
       return true;
     } catch { if (!silent) setNotice("同步失败：无法连接本地服务，请重试或重启迹汇"); return false; }
     finally { if (!silent) setBusy(false); }
@@ -102,7 +107,7 @@ export default function App() {
     try {
       const response = await fetchLocal(`${API}/reports/daily/generate`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({date:today,targetMinutes}) }, 1);
       if (!response.ok) throw new Error();
-      const report:Report = await response.json(); setSummary(report.summary); setNextPlan(report.nextPlan);
+      const report:Report = await response.json(); setSummary(textOrEmpty(report.summary)); setNextPlan(textOrEmpty(report.nextPlan));
       setDashboard(current => current ? {...current,report} : current); setNotice("日报草稿已根据真实工作记录生成");
       recordUsage("generate", settings.localStatistics);
     } catch { setNotice("生成失败，请检查本地后端"); } finally { setBusy(false); }
@@ -120,7 +125,7 @@ export default function App() {
         if (!response.ok) return;
         const report: Report = await response.json();
         localStorage.setItem(storageKey, "true");
-        setSummary(report.summary); setNextPlan(report.nextPlan);
+        setSummary(textOrEmpty(report.summary)); setNextPlan(textOrEmpty(report.nextPlan));
         setDashboard(current => current ? { ...current, report } : current);
         setNotice(`${settings.generateAt} 日报草稿已自动生成，请检查后确认`);
         recordUsage("generate", settings.localStatistics);
@@ -130,6 +135,12 @@ export default function App() {
     const timer = window.setInterval(() => void check(), 30_000);
     return () => window.clearInterval(timer);
   }, [dashboard?.report, settings.generateAt, settings.localStatistics, targetMinutes]);
+
+  useEffect(() => {
+    if (!dashboardLoaded || (!summary.trim() && !nextPlan.trim())) return;
+    const timer = window.setTimeout(() => saveLocalDraft(today, summary, nextPlan), 800);
+    return () => window.clearTimeout(timer);
+  }, [dashboardLoaded, summary, nextPlan]);
 
   async function confirmReport() {
     if (!summary.trim() || !nextPlan.trim()) return setNotice("请补全今日总结和明日计划");
@@ -165,35 +176,30 @@ export default function App() {
   }
 
   const progress = Math.min(100,Math.round(((dashboard?.allocatedMinutes ?? 0) / Math.max(targetMinutes,1)) * 100));
-  const projects = useMemo(() => new Set(dashboard?.events.map(item => item.projectName) ?? []).size,[dashboard]);
   const confirmed = dashboard?.report?.status === "CONFIRMED";
 
-  return <div className="app-shell">
+  function toggleTheme() {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next); localStorage.setItem("traceflow.theme", next);
+  }
+
+  return <div className={`app-shell theme-${theme}`}>
     <aside className="sidebar">
       <div className="brand"><img className="brand-mark" src="/brand/xiaoyou-icon.svg" alt="小鱿"/><div><strong>迹汇</strong><span>TraceFlow</span></div></div>
       <nav>
-        <button aria-label="今日工作" className={`nav-item ${page === "today" ? "active" : ""}`} onClick={() => setPage("today")}><LayoutDashboard size={19}/><span>今日工作</span></button>
-        <button aria-label="日报周报" className={`nav-item ${page === "history" ? "active" : ""}`} onClick={() => setPage("history")}><FileText size={19}/><span>日报周报</span><em>一期</em></button>
-        <button className="nav-item" disabled title="二期功能"><TimerReset size={19}/><span>Jira 工时</span><em>二期</em></button>
-        <button aria-label="历史记录" className={`nav-item ${page === "history" ? "active" : ""}`} onClick={() => setPage("history")}><History size={19}/><span>历史记录</span><em>一期</em></button>
-        <button aria-label="企业微信" className={`nav-item ${page === "wecom" ? "active" : ""}`} onClick={() => setPage("wecom")}><MessageSquareText size={19}/><span>企业微信</span><em>本机</em></button>
-        <button className="nav-item" disabled title="二期功能"><Database size={19}/><span>自动数据源</span><em>二期</em></button>
-        <button className="nav-item" disabled title="二期功能"><WandSparkles size={19}/><span>PPT 汇报</span><em>二期</em></button>
+        <button aria-label="今日" className={`nav-item ${page === "today" ? "active" : ""}`} onClick={() => setPage("today")}><LayoutDashboard size={19}/><span>今日</span></button>
+        <button aria-label="工作记录" className={`nav-item ${page === "records" ? "active" : ""}`} onClick={() => setPage("records")}><ListChecks size={19}/><span>工作记录</span></button>
+        <button aria-label="汇报中心" className={`nav-item ${page === "reports" ? "active" : ""}`} onClick={() => setPage("reports")}><FileText size={19}/><span>汇报中心</span></button>
+        <button aria-label="项目" className={`nav-item ${page === "projects" ? "active" : ""}`} onClick={() => setPage("projects")}><FolderKanban size={19}/><span>项目</span></button>
       </nav>
       <div className="sidebar-bottom"><button className="nav-item" onClick={() => setShowSettings(true)}><Settings size={19}/><span>设置</span></button><div className="privacy"><span/>本地模式 · 数据未上传</div></div>
     </aside>
 
     <main>
       {page === "today" && <>
-      <header className="topbar"><div><p className="eyebrow">WORKSPACE / TODAY</p><h1>今天的工作，已经有迹可循</h1></div><div className="top-actions">{monitorStatus === "COLLECTING" && <button className="sync-button monitor-pause" onClick={() => void pauseOneHour()}><Pause size={16}/>暂停 1 小时</button>}<button className={`sync-button monitor-toggle status-${monitorStatus.toLowerCase()}`} onClick={() => void toggleMonitoring()}>{monitorStatus === "COLLECTING" || monitorStatus === "IDLE" || monitorStatus === "PAUSED" ? <Pause size={16}/> : <Play size={16}/>}监控：{{COLLECTING:"采集中",IDLE:"空闲暂停",PAUSED:"已暂停",DISABLED:"已关闭",ERROR:"异常",UNAVAILABLE:"仅桌面版"}[monitorStatus]}</button><button className="icon-button" disabled title="一期固定使用深色模式"><Moon size={18}/></button><button className="sync-button" onClick={() => void loadDashboard()} disabled={busy}>{busy ? <LoaderCircle className="spin" size={17}/> : <RefreshCw size={17}/>}立即同步</button></div></header>
+      <header className="topbar"><div><p className="eyebrow">WORKSPACE / TODAY</p><h1>今天的工作，已经有迹可循</h1></div><div className="top-actions">{monitorStatus === "COLLECTING" && <button className="sync-button monitor-pause" onClick={() => void pauseOneHour()}><Pause size={16}/>暂停 1 小时</button>}<button className={`sync-button monitor-toggle status-${monitorStatus.toLowerCase()}`} onClick={() => void toggleMonitoring()}>{monitorStatus === "COLLECTING" || monitorStatus === "IDLE" || monitorStatus === "PAUSED" ? <Pause size={16}/> : <Play size={16}/>}监控：{{COLLECTING:"采集中",IDLE:"空闲暂停",PAUSED:"已暂停",DISABLED:"已关闭",ERROR:"异常",UNAVAILABLE:"仅桌面版"}[monitorStatus]}</button><button className="icon-button" aria-label={theme === "dark" ? "切换到浅色模式" : "切换到深色模式"} onClick={toggleTheme}>{theme === "dark" ? <Sun size={18}/> : <Moon size={18}/>}</button><button className="sync-button" onClick={() => void loadDashboard()} disabled={busy}>{busy ? <LoaderCircle className="spin" size={17}/> : <RefreshCw size={17}/>}立即整理</button></div></header>
       <section className="status-strip"><span className="live-dot"/><strong>{notice}</strong><span className="status-time"><Clock3 size={15}/>{settings.generateAt} 自动生成 · {settings.submitAfter} 后确认提交</span></section>
-
-      <section className="metrics">
-        <article><div className="metric-icon indigo"><Activity/></div><div><span>有效工作事件</span><strong>{dashboard?.events.length ?? 0}</strong><small>今日自动归集</small></div></article>
-        <article><div className="metric-icon violet"><LayoutDashboard/></div><div><span>涉及项目</span><strong>{projects}</strong><small>按项目自动聚合</small></div></article>
-        <article><div className="metric-icon green"><Clock3/></div><div><span>已分配工时</span><strong>{minutesLabel(dashboard?.allocatedMinutes ?? 0)}</strong><small>目标 {minutesLabel(targetMinutes)}</small></div></article>
-        <article><div className="metric-icon amber"><Check/></div><div><span>今日状态</span><strong className="text-state">{confirmed ? "已确认" : "待确认"}</strong><small>{confirmed ? "等待18:00提交" : "请检查日报草稿"}</small></div></article>
-      </section>
+      <section className="day-summary"><BriefcaseBusiness size={16}/><span>{dashboard?.events.length ?? 0} 条有效记录</span><i/> <span>{minutesLabel(dashboard?.allocatedMinutes ?? 0)} 已归集</span><i/><strong>{confirmed ? "日报已确认" : "日报待确认"}</strong></section>
 
       <section className="workspace-grid">
         <div className="panel timeline-panel"><div className="panel-heading"><div><p className="eyebrow">ACTIVITY</p><h2>工作证据时间线</h2></div><div className="timeline-actions"><button className="soft-button" onClick={() => setTaskDialog("会议")}><Plus size={16}/>会议</button><button className="soft-button" onClick={() => setTaskDialog("培训")}><Plus size={16}/>培训</button><button className="soft-button" onClick={() => setTaskDialog("手动补充")}><Plus size={16}/>手动补充</button></div></div>
@@ -203,7 +209,8 @@ export default function App() {
           </article>)}</div>
         </div>
 
-        <div className="panel report-panel"><div className="panel-heading"><div><p className="eyebrow">DAILY REPORT</p><h2>日报与工时草稿</h2></div><span className={`status-pill ${confirmed ? "confirmed" : ""}`}>{confirmed ? "已确认" : "待检查"}</span></div>
+        <div className="panel report-panel"><div className="panel-heading"><div><p className="eyebrow">DAILY REPORT</p><h2>日报与工时草稿</h2></div><div className="report-heading-actions"><button onClick={() => setShowVersions(value => !value)}><History/>版本</button><span className={`status-pill ${confirmed ? "confirmed" : ""}`}>{confirmed ? "已确认" : "待检查"}</span></div></div>
+          {showVersions && <div className="draft-versions"><strong>最近自动保存</strong>{listDraftVersions(today).length ? listDraftVersions(today).map(version => <button key={version.savedAt} onClick={() => { setSummary(version.summary); setNextPlan(version.nextPlan); setShowVersions(false); setNotice("已恢复所选日报版本"); }}><span>{new Date(version.savedAt).toLocaleString("zh-CN")}</span><small>{version.summary.slice(0, 34) || "空白总结"}</small></button>) : <p>尚无本地版本</p>}</div>}
           <label>今日工作总结<textarea value={summary} onChange={event => setSummary(event.target.value)} placeholder="生成本地草稿，或在这里补充真实工作内容…"/></label>
           <label>明日工作计划<textarea className="plan-input" value={nextPlan} onChange={event => setNextPlan(event.target.value)} placeholder="输入明天的重点计划…"/></label>
           <div className="hours-card"><div className="hours-title"><div><Clock3 size={18}/><span>目标工时</span></div><strong>{(targetMinutes / 60).toFixed(targetMinutes % 60 ? 1 : 0)} 小时</strong></div><input type="range" min="0" max="720" step="30" value={targetMinutes} onChange={event => setTargetMinutes(Number(event.target.value))}/><div className="progress-row"><span>当前已分配 {minutesLabel(dashboard?.allocatedMinutes ?? 0)}</span><strong>{progress}%</strong></div><div className="progress"><i style={{width:`${progress}%`}}/></div></div>
@@ -213,12 +220,10 @@ export default function App() {
         </div>
       </section>
 
-      <section className="panel sources-panel"><div className="panel-heading"><div><p className="eyebrow">CONNECTORS</p><h2>数据源规划</h2></div><span className="phase-badge">二期功能 · 当前不可用</span></div><div className="source-grid">{(dashboard?.connectors ?? []).map(connector => <article key={connector.id} className={!connector.enabled ? "source-disabled" : ""}><div className="source-icon">{sourceIcon(connector.connectorType)}</div><div><h3>{connector.name}</h3><p>{connector.privacyLevel === "METADATA" ? "计划仅采集元数据" : connector.privacyLevel}</p></div><span className="source-warn">尚未开放</span></article>)}</div></section>
-      <ProjectInbox api={API} date={today}/>
-      <AiAssistantPanel settings={settings} onChange={updateSettings} summary={summary} nextPlan={nextPlan}/>
       </>}
-      {page === "history" && <ReportsWorkspace api={API} date={today}/>}
-      {page === "wecom" && <WeComWorkspace api={API}/>}
+      {page === "records" && <section className="page-workspace"><header><p className="eyebrow">REVIEW</p><h1>工作记录</h1><span>监控记录会自动聚合并进入日报，只需在需要时纠正项目归属。</span></header><ProjectInbox api={API} date={today} mode="records"/></section>}
+      {page === "reports" && <section className="page-workspace"><header><p className="eyebrow">REPORTS</p><h1>汇报中心</h1><span>日报、周报和月报统一管理。</span></header><ReportsWorkspace api={API} date={today}/></section>}
+      {page === "projects" && <section className="page-workspace"><header><p className="eyebrow">PROJECTS</p><h1>项目</h1><span>确认项目一次，后续自动归类。</span></header><ProjectInbox api={API} date={today} mode="projects"/></section>}
     </main>
     {showOnboarding && <Onboarding
       initial={settings}

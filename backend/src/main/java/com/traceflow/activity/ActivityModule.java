@@ -11,10 +11,14 @@ import java.time.OffsetDateTime;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Service
 public class ActivityModule {
+    private static final Pattern ISSUE_KEY = Pattern.compile("(?i)(?<![A-Z0-9])([A-Z][A-Z0-9]{1,11})-\\d+");
     private final JdbcClient jdbc;
     private final SensitiveTextCipher sensitiveText;
 
@@ -89,6 +93,28 @@ public class ActivityModule {
     public List<ProjectDefinition> projects() {
         return jdbc.sql("SELECT id FROM project_definition ORDER BY CASE status WHEN 'ACTIVE' THEN 0 ELSE 1 END, name")
                 .query(String.class).list().stream().map(this::findProject).toList();
+    }
+
+    public List<ProjectCandidate> projectCandidates(LocalDate date) {
+        Map<String, List<String>> examplesByCode = new LinkedHashMap<>();
+        observations(date).stream()
+                .filter(item -> "PENDING".equals(item.classification()))
+                .forEach(item -> {
+                    var matcher = ISSUE_KEY.matcher(item.windowTitle());
+                    while (matcher.find()) {
+                        String code = matcher.group(1).toUpperCase(Locale.ROOT);
+                        examplesByCode.computeIfAbsent(code, ignored -> new java.util.ArrayList<>()).add(item.windowTitle());
+                    }
+                });
+        var existingCodes = projects().stream().map(ProjectDefinition::code)
+                .map(value -> value.toUpperCase(Locale.ROOT)).collect(java.util.stream.Collectors.toSet());
+        return examplesByCode.entrySet().stream()
+                .filter(entry -> !existingCodes.contains(entry.getKey()))
+                .map(entry -> new ProjectCandidate(entry.getKey(), entry.getKey(), entry.getValue().size(),
+                        entry.getValue().size() >= 3 ? 0.85 : 0.70,
+                        entry.getValue().stream().distinct().limit(3).toList()))
+                .sorted(java.util.Comparator.comparingInt(ProjectCandidate::occurrenceCount).reversed())
+                .toList();
     }
 
     @Transactional
@@ -254,14 +280,49 @@ public class ActivityModule {
     }
 
     private Match classify(String searchableText) {
-        String normalized = searchableText.toLowerCase(Locale.ROOT);
-        for (ProjectDefinition project : projects().stream().filter(item -> "ACTIVE".equals(item.status())).toList()) {
-            boolean matched = project.matchKeywords().stream()
-                    .map(keyword -> keyword.toLowerCase(Locale.ROOT))
-                    .anyMatch(normalized::contains);
-            if (matched) return new Match(project.id(), project.name(), "AUTO", 0.95);
+        String normalized = canonical(searchableText);
+        List<Match> matches = projects().stream()
+                .filter(item -> "ACTIVE".equals(item.status()))
+                .map(project -> score(project, normalized))
+                .filter(java.util.Objects::nonNull)
+                .sorted(java.util.Comparator.comparingDouble(Match::confidence).reversed())
+                .toList();
+        if (!matches.isEmpty()) {
+            Match best = matches.getFirst();
+            boolean conflict = matches.size() > 1 && matches.get(1).confidence() == best.confidence();
+            if (!conflict) return best;
+        }
+        var issue = ISSUE_KEY.matcher(searchableText);
+        if (issue.find()) {
+            String suggestedCode = issue.group(1).toUpperCase(Locale.ROOT);
+            return new Match(null, "建议：" + suggestedCode, "PENDING", 0.70);
         }
         return new Match(null, "待归类", "PENDING", 0.0);
+    }
+
+    private Match score(ProjectDefinition project, String searchableText) {
+        String code = canonical(project.code());
+        String name = canonical(project.name());
+        if (isUseful(code) && searchableText.contains(code)) {
+            return new Match(project.id(), project.name(), "AUTO", 1.0);
+        }
+        if (isUseful(name) && searchableText.contains(name)) {
+            return new Match(project.id(), project.name(), "AUTO", 1.0);
+        }
+        boolean keywordMatched = project.matchKeywords().stream()
+                .map(ActivityModule::canonical)
+                .filter(ActivityModule::isUseful)
+                .anyMatch(searchableText::contains);
+        return keywordMatched ? new Match(project.id(), project.name(), "AUTO", 0.95) : null;
+    }
+
+    private static String canonical(String value) {
+        return value == null ? "" : value.toLowerCase(Locale.ROOT)
+                .replaceAll("[^\\p{L}\\p{N}]", "");
+    }
+
+    private static boolean isUseful(String value) {
+        return value.codePointCount(0, value.length()) >= 2;
     }
 
     private record Match(String projectId, String projectName, String classification, double confidence) {

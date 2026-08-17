@@ -13,6 +13,7 @@ mod activity_monitor;
 mod screenshot_capture;
 mod credential_store;
 mod ai_provider;
+mod wecom_api;
 use activity_monitor::{CapturePolicy, MonitorRuntime, MonitorStatus};
 use screenshot_capture::{ScreenshotPreview, ScreenshotRuntime, ScreenshotSettings};
 
@@ -100,15 +101,12 @@ fn capture_screenshot_preview(delay_seconds: u64, screenshots: tauri::State<'_, 
 
 #[tauri::command]
 fn capture_wecom_uia_preview(delay_seconds: u64, screenshots: tauri::State<'_, ScreenshotRuntime>) -> Result<ScreenshotPreview, String> {
-    if !screenshots.settings()?.uia_enabled {
-        return Err("请先在设置 → 数据与隐私中开启 UI Automation 文本读取".into());
-    }
     std::thread::sleep(std::time::Duration::from_secs(delay_seconds.min(5)));
     let active = activity_monitor::active_window().ok_or_else(|| "未找到活动窗口".to_string())?;
     if !screenshot_capture::is_wecom_application(&active.application_name) {
         return Err(format!("当前活动窗口是 {}，请切换到企业微信客户端", active.application_name));
     }
-    screenshot_capture::capture_active_window_uia_preview()
+    screenshots.capture_wecom_preview()
 }
 
 #[tauri::command]
@@ -131,6 +129,16 @@ fn delete_ai_secret(secret_id: String) -> Result<bool, String> {
 #[tauri::command]
 fn generate_with_ai(request: ai_provider::AiGenerateRequest) -> Result<ai_provider::AiGenerateResponse, String> {
     ai_provider::generate(request)
+}
+
+#[tauri::command]
+fn test_wecom_connection(corp_id: String) -> Result<String, String> {
+    wecom_api::test_connection(&corp_id)
+}
+
+#[tauri::command]
+fn fetch_wecom_reports(request: wecom_api::WeComFetchRequest) -> Result<Vec<wecom_api::WeComJournal>, String> {
+    wecom_api::fetch_reports(request)
 }
 
 #[tauri::command]
@@ -188,7 +196,7 @@ fn clear_desktop_private_data(app: tauri::AppHandle, monitor: tauri::State<'_, M
     let mut settings = screenshots.settings()?;
     settings.enabled = false;
     screenshots.save_settings(settings)?;
-    for secret in ["openai", "compatible", "codex"] { let _ = credential_store::delete_secret(secret); }
+    for secret in ["openai", "compatible", "codex", "wecom-report"] { let _ = credential_store::delete_secret(secret); }
     let data_dir = app.path().app_data_dir().map_err(|error| error.to_string())?;
     for name in ["screenshots", "traceflow-backend.log"] {
         let path = data_dir.join(name);
@@ -323,7 +331,7 @@ pub fn run() {
                 .build(app)?;
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![monitor_status, set_monitor_enabled, pause_monitor, capture_policy, set_capture_policy, screenshot_settings, set_screenshot_settings, capture_screenshot_preview, capture_wecom_uia_preview, save_ai_secret, ai_secret_status, delete_ai_secret, generate_with_ai, autostart_status, set_autostart, clear_desktop_private_data])
+        .invoke_handler(tauri::generate_handler![monitor_status, set_monitor_enabled, pause_monitor, capture_policy, set_capture_policy, screenshot_settings, set_screenshot_settings, capture_screenshot_preview, capture_wecom_uia_preview, save_ai_secret, ai_secret_status, delete_ai_secret, generate_with_ai, test_wecom_connection, fetch_wecom_reports, autostart_status, set_autostart, clear_desktop_private_data])
         .build(tauri::generate_context!())
         .expect("无法创建迹汇桌面应用");
 

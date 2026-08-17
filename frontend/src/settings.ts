@@ -28,7 +28,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   minimizeToTray: true,
   monitoringEnabled: false,
   aiProvider: "OPENAI",
-  aiModel: "gpt-5.4-mini",
+  aiModel: "gpt-5-mini",
   aiBaseUrl: "",
   aiProxyUrl: "",
 };
@@ -39,6 +39,7 @@ const ONBOARDING_KEY = "traceflow.onboarding.completed";
 export function loadSettings(): AppSettings {
   try {
     const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}");
+    if (saved.aiModel === "gpt-5.4-mini") saved.aiModel = "gpt-5-mini";
     return { ...DEFAULT_SETTINGS, ...saved };
   } catch {
     return DEFAULT_SETTINGS;

@@ -166,6 +166,24 @@ impl ScreenshotRuntime {
         })
     }
 
+    pub fn capture_wecom_preview(&self) -> Result<ScreenshotPreview, String> {
+        let settings = self.settings()?;
+        if !settings.uia_enabled {
+            return Err("请先在设置 → 自动整理中开启 UI Automation 文本读取".into());
+        }
+        let uia_text = read_active_window_uia_text().unwrap_or_default();
+        match settings.decide_content_acquisition(!uia_text.trim().is_empty()) {
+            ContentAcquisitionDecision::ReadUia => Ok(ScreenshotPreview {
+                image_path: None,
+                ocr_text: uia_text,
+            }),
+            ContentAcquisitionDecision::UseOcrFallback => self.capture_preview(),
+            ContentAcquisitionDecision::Skip => Err(
+                "UI Automation 未读取到正文；如需兜底，请在设置中单独授权本地 OCR".into(),
+            ),
+        }
+    }
+
     fn capture_ocr_and_store(
         &self,
         application_name: &str,
@@ -224,17 +242,6 @@ fn read_active_window_uia_text() -> Result<String, String> {
         return Err("未找到活动窗口".into());
     }
     read_uia_text_from_handle(window)
-}
-
-pub fn capture_active_window_uia_preview() -> Result<ScreenshotPreview, String> {
-    let text = read_active_window_uia_text()?;
-    if text.trim().is_empty() {
-        return Err("当前窗口没有可读取的 UI Automation 文本".into());
-    }
-    Ok(ScreenshotPreview {
-        image_path: None,
-        ocr_text: text,
-    })
 }
 
 pub fn is_wecom_application(application_name: &str) -> bool {

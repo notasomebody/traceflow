@@ -1,10 +1,14 @@
-const ALLOWED_SECRET_IDS: &[&str] = &["openai", "compatible", "codex"];
+const ALLOWED_SECRET_IDS: &[&str] = &["openai", "compatible", "codex", "wecom-report"];
 
 fn target_name(secret_id: &str) -> Result<String, String> {
     if !ALLOWED_SECRET_IDS.contains(&secret_id) {
         return Err("不支持的密钥类型".into());
     }
-    Ok(format!("TraceFlow:ai:{secret_id}"))
+    Ok(if secret_id == "wecom-report" {
+        "TraceFlow:connector:wecom-report".into()
+    } else {
+        format!("TraceFlow:ai:{secret_id}")
+    })
 }
 
 #[cfg(windows)]
@@ -63,6 +67,7 @@ mod tests {
     #[test]
     fn credential_targets_are_whitelisted_and_namespaced() {
         assert_eq!(super::target_name("openai").unwrap(), "TraceFlow:ai:openai");
+        assert_eq!(super::target_name("wecom-report").unwrap(), "TraceFlow:connector:wecom-report");
         assert!(super::target_name("arbitrary-windows-credential").is_err());
     }
 }

@@ -111,12 +111,13 @@ class TraceflowBackendApplicationTests {
                 .andExpect(jsonPath("$.classification").value("AUTO"))
                 .andExpect(jsonPath("$.projectName").value("数据中台"));
 
-        mvc.perform(post("/api/activity/ingest")
+        String pendingBody = mvc.perform(post("/api/activity/ingest")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"capturedAt\":\"2026-08-11T10:00:00+08:00\",\"applicationName\":\"unknown.exe\",\"windowTitle\":\"尚未配置的工作窗口\",\"durationSeconds\":120}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.classification").value("PENDING"))
-                .andExpect(jsonPath("$.projectName").value("待归类"));
+                .andExpect(jsonPath("$.projectName").value("待归类"))
+                .andReturn().getResponse().getContentAsString();
 
         mvc.perform(get("/api/activity").param("date", "2026-08-11"))
                 .andExpect(status().isOk())
@@ -133,7 +134,7 @@ class TraceflowBackendApplicationTests {
         byte[] plaintextBytes = "尚未配置的工作窗口".getBytes(java.nio.charset.StandardCharsets.UTF_8);
         org.assertj.core.api.Assertions.assertThat(containsSequence(databaseBytes, plaintextBytes)).isFalse();
 
-        String pendingId = jdbc.sql("SELECT id FROM activity_observation WHERE classification = 'PENDING'").query(String.class).single();
+        String pendingId = json.readTree(pendingBody).get("id").asText();
         String projectId = jdbc.sql("SELECT id FROM project_definition WHERE code = 'TDS'").query(String.class).single();
         mvc.perform(post("/api/activity/{id}/classify", pendingId)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -143,9 +144,17 @@ class TraceflowBackendApplicationTests {
                 .andExpect(jsonPath("$.confidence").value(1.0));
         org.assertj.core.api.Assertions.assertThat(jdbc.sql("SELECT COUNT(*) FROM project_match_keyword WHERE keyword = 'unknown.exe'").query(Integer.class).single()).isOne();
 
+        mvc.perform(post("/api/activity/ingest")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"capturedAt\":\"2026-08-11T10:30:00+08:00\",\"applicationName\":\"unknown.exe\",\"windowTitle\":\"另一条未知窗口\",\"durationSeconds\":60}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.classification").value("AUTO"))
+                .andExpect(jsonPath("$.projectName").value("数据中台"))
+                .andExpect(jsonPath("$.confidence").value(0.95));
+
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/activity"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.deletedCount").value(2));
+                .andExpect(jsonPath("$.deletedCount").value(org.hamcrest.Matchers.greaterThanOrEqualTo(3)));
         mvc.perform(get("/api/activity").param("date", "2026-08-11"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));
@@ -163,6 +172,83 @@ class TraceflowBackendApplicationTests {
         String id = json.readTree(body).get("id").asText();
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/projects/{id}", id))
                 .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void projectCodeProvidesHighConfidenceWithoutManualKeywords() throws Exception {
+        mvc.perform(post("/api/projects")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"智能马甲重构\",\"code\":\"ZNMJ-UT\"}"))
+                .andExpect(status().isCreated());
+
+        mvc.perform(post("/api/activity/ingest")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"capturedAt\":\"2026-08-13T09:00:00+08:00\",\"applicationName\":\"Code.exe\",\"windowTitle\":\"ZNMJ-UT-105 接口开发\",\"durationSeconds\":300}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.classification").value("AUTO"))
+                .andExpect(jsonPath("$.projectName").value("智能马甲重构"))
+                .andExpect(jsonPath("$.confidence").value(1.0));
+    }
+
+    @Test
+    void projectCandidatesAreDiscoveredBeforeTheUserCreatesProjects() throws Exception {
+        mvc.perform(post("/api/activity/ingest")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"capturedAt\":\"2026-08-14T09:00:00+08:00\",\"applicationName\":\"Code.exe\",\"windowTitle\":\"NEWFLOW-218 日报归类 - Visual Studio Code\",\"durationSeconds\":300}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.classification").value("PENDING"))
+                .andExpect(jsonPath("$.projectName").value("建议：NEWFLOW"))
+                .andExpect(jsonPath("$.confidence").value(0.70));
+
+        mvc.perform(get("/api/projects/candidates").param("date", "2026-08-14"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].code").value("NEWFLOW"))
+                .andExpect(jsonPath("$[0].suggestedName").value("NEWFLOW"))
+                .andExpect(jsonPath("$[0].occurrenceCount").value(1));
+    }
+
+    @Test
+    void dailyReportAutomaticallySummarizesMonitoredWorkWithoutPerItemConfirmation() throws Exception {
+        mvc.perform(post("/api/projects")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"自动汇总项目\",\"code\":\"AUTOSUM\"}"))
+                .andExpect(status().isCreated());
+        mvc.perform(post("/api/activity/ingest")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"capturedAt\":\"2026-08-09T09:00:00+08:00\",\"applicationName\":\"Code.exe\",\"windowTitle\":\"AUTOSUM-21 完成日报聚合 - Visual Studio Code\",\"durationSeconds\":1800}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.classification").value("AUTO"));
+        mvc.perform(post("/api/activity/ingest")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"capturedAt\":\"2026-08-09T11:00:00+08:00\",\"applicationName\":\"PowerPoint.exe\",\"windowTitle\":\"月度汇报材料整理\",\"durationSeconds\":900}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.classification").value("PENDING"));
+
+        mvc.perform(post("/api/reports/daily/generate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\":\"2026-08-09\",\"targetMinutes\":480}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary", org.hamcrest.Matchers.allOf(
+                        org.hamcrest.Matchers.containsString("自动汇总项目"),
+                        org.hamcrest.Matchers.containsString("完成日报聚合"),
+                        org.hamcrest.Matchers.containsString("其他工作"),
+                        org.hamcrest.Matchers.containsString("月度汇报材料整理"))));
+    }
+
+    @Test
+    void conflictingRulesStayPendingInsteadOfChoosingAProjectSilently() throws Exception {
+        mvc.perform(post("/api/projects").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"冲突项目甲\",\"code\":\"CONFLICT-A\",\"matchKeywords\":[\"shared-rule-ut\"]}"))
+                .andExpect(status().isCreated());
+        mvc.perform(post("/api/projects").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"冲突项目乙\",\"code\":\"CONFLICT-B\",\"matchKeywords\":[\"shared-rule-ut\"]}"))
+                .andExpect(status().isCreated());
+
+        mvc.perform(post("/api/activity/ingest").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"capturedAt\":\"2026-08-14T11:00:00+08:00\",\"applicationName\":\"Editor.exe\",\"windowTitle\":\"shared-rule-ut 工作窗口\",\"durationSeconds\":60}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.classification").value("PENDING"))
+                .andExpect(jsonPath("$.projectName").value("待归类"));
     }
 
     @Test

@@ -4,6 +4,7 @@ import { DEFAULT_SETTINGS, exportShareCode, importShareCode, loadSettings, markO
 import { clearUsageStats, loadUsageStats, recordUsage } from "./usageStats";
 import { localDateKey, shouldGenerateDaily } from "./reportScheduler";
 import { fetchLocal, waitForLocalApi } from "./localApi";
+import { listDraftVersions, loadLocalDraft, saveLocalDraft } from "./draftHistory";
 
 const values = new Map<string, string>();
 Object.defineProperty(globalThis, "localStorage", { value: { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => values.set(key, value), removeItem: (key: string) => values.delete(key), clear: () => values.clear() } });
@@ -14,6 +15,10 @@ describe("一期配置", () => {
     saveSettings({ ...DEFAULT_SETTINGS, targetMinutes: 450 });
     expect(loadSettings().targetMinutes).toBe(450);
     expect(loadSettings().generateAt).toBe("17:50");
+  });
+  it("自动迁移旧版本中无效的默认模型名", () => {
+    localStorage.setItem("traceflow.settings.v1", JSON.stringify({ aiModel: "gpt-5.4-mini" }));
+    expect(loadSettings().aiModel).toBe("gpt-5-mini");
   });
   it("记录和重置首次引导状态", () => {
     expect(onboardingCompleted()).toBe(false);
@@ -102,5 +107,14 @@ describe("仅本机使用统计", () => {
     expect(loadUsageStats()).toMatchObject({ generate: 1, copy: 1 });
     clearUsageStats();
     expect(loadUsageStats()).toMatchObject({ generate: 0, copy: 0 });
+  });
+});
+
+describe("日报本地版本", () => {
+  it("自动保存最近草稿并可恢复旧版本", () => {
+    saveLocalDraft("2026-08-14", "第一版总结", "第一版计划");
+    saveLocalDraft("2026-08-14", "第二版总结", "第二版计划");
+    expect(loadLocalDraft("2026-08-14")?.summary).toBe("第二版总结");
+    expect(listDraftVersions("2026-08-14").map(item => item.summary)).toEqual(["第二版总结", "第一版总结"]);
   });
 });

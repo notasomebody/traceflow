@@ -37,6 +37,12 @@ public class ActivityController {
         return activities.projects();
     }
 
+    @GetMapping("/projects/candidates")
+    public List<ProjectCandidate> projectCandidates(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        return activities.projectCandidates(date);
+    }
+
     @PostMapping("/activity/ingest")
     @ResponseStatus(HttpStatus.CREATED)
     public ActivityObservation ingest(@Valid @RequestBody IngestActivityRequest request) {
