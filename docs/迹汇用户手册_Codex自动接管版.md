@@ -64,6 +64,12 @@ https://github.com/notasomebody/traceflow/releases/latest
 6. 脚本会再次下载并校验 Windows x64 安装包，静默安装、启动迹汇并检查健康状态。
 7. Windows 显示“未知发布者”或其他系统安全提示时暂停，由用户本人判断和确认；不得自动点击、关闭或绕过。
 
+Windows 默认执行策略可能禁止 `.ps1`。仅在脚本 SHA-256 已经验证通过后，可以对这一次子进程使用以下命令；它不会修改系统或用户的永久执行策略，也不能用于未校验的脚本：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "下载后的完整路径\install-latest.ps1"
+```
+
 脚本下载地址：
 
 ```text
