@@ -24,7 +24,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - uses: dtolnay/rust-toolchain@stable
-      - name: 构建本地后端
+      - name: 测试并构建本地后端
         working-directory: backend
         run: ./mvnw.cmd package --batch-mode
       - name: 生成精简 Java 运行时
@@ -34,15 +34,32 @@ jobs:
       - name: 安装前端依赖
         working-directory: frontend
         run: npm ci
+      - name: 测试前端
+        working-directory: frontend
+        run: npm test
+      - name: 检查前端代码
+        working-directory: frontend
+        run: npm run lint
+      - name: 测试桌面端
+        working-directory: frontend/src-tauri
+        run: cargo test
       - name: 构建 Windows 安装包
         working-directory: frontend
         run: npm run desktop:build -- --bundles nsis
       - name: 生成 SHA-256
         shell: pwsh
-        run: Get-ChildItem frontend/src-tauri/target/release/bundle/nsis/*.exe | Get-FileHash -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $([IO.Path]::GetFileName($_.Path))" } | Set-Content frontend/src-tauri/target/release/bundle/nsis/SHA256SUMS.txt
+        run: |
+          $files = @(
+            Get-ChildItem frontend/src-tauri/target/release/bundle/nsis/*.exe
+            Get-Item scripts/install-latest.ps1
+          )
+          $files | Get-FileHash -Algorithm SHA256 | ForEach-Object {
+            "$($_.Hash.ToLower())  $([IO.Path]::GetFileName($_.Path))"
+          } | Set-Content frontend/src-tauri/target/release/bundle/nsis/SHA256SUMS.txt -Encoding utf8
       - uses: softprops/action-gh-release@v2
         with:
           files: |
             frontend/src-tauri/target/release/bundle/nsis/*.exe
             frontend/src-tauri/target/release/bundle/nsis/SHA256SUMS.txt
+            scripts/install-latest.ps1
           generate_release_notes: true

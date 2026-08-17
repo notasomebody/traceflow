@@ -24,11 +24,19 @@
 
 ## 5 分钟上手
 
-希望尽量少操作时，可以把 [Codex 自动接管版用户手册](docs/迹汇用户手册_Codex自动接管版.md) 直接交给 Codex。它会自动检查迹汇、整理用户指定范围内的历史日报和 Jira 导出、生成一次总预览，并在确认后写入本机迹汇。
+项目地址：[GitHub notasomebody/traceflow](https://github.com/notasomebody/traceflow)
 
-正式安装包发布后：
+希望尽量少操作时，直接把项目地址和 [Codex 自动接管版用户手册](docs/迹汇用户手册_Codex自动接管版.md) 交给 Codex。它会从 [最新稳定版 Release](https://github.com/notasomebody/traceflow/releases/latest) 自动下载并校验安装包，不克隆源码；安装启动后，再整理用户指定范围内的历史日报和 Jira 导出，生成一次总预览，并在确认后写入本机迹汇。
 
-1. 从 GitHub Releases 下载 Windows 安装包。
+可以直接对 Codex 说：
+
+```text
+请按照 https://github.com/notasomebody/traceflow 中的《迹汇用户手册：Codex 自动接管版》帮我一条龙安装和初始化迹汇。只下载最新稳定版 Release，不克隆源码；先校验 SHA-256，再安装和启动。需要 Windows 安全确认、选择资料范围、登录外部系统或最终导入时再让我操作，其他步骤直接完成。
+```
+
+手动安装：
+
+1. 从 [GitHub Releases](https://github.com/notasomebody/traceflow/releases/latest) 下载 Windows x64 安装包和 `SHA256SUMS.txt`。
 2. 双击安装并启动“迹汇 TraceFlow”。
 3. 首次向导只需确认工作时间、是否开启本机监控和生成方式；全部保持默认也可直接开始。
 4. 项目和外部服务可以稍后配置，不会阻挡自动整理。
@@ -43,7 +51,7 @@
 - 自动读取前，需在“设置 → 自动整理”单独开启 UI Automation。它只读取当前活动的企业微信窗口；本地 OCR 默认关闭，必须再次授权，识别完成后默认立即删除原图。
 - 当前版本不自动提交企业微信汇报；识别结果和导入内容必须由用户检查确认。
 
-第一版安装包暂未进行商业代码签名，Windows 可能提示“未知发布者”。请只从本仓库 Releases 下载，并对照发布页中的 SHA-256 校验值。
+第一版安装包暂未进行商业代码签名，Windows 可能提示“未知发布者”。该安全提示必须由用户本人判断和确认，自动化不会绕过。请只从本仓库 Releases 下载，并对照 `SHA256SUMS.txt` 校验安装包。
 
 ## 数据安全与隐私
 
