@@ -46,11 +46,17 @@ jobs:
       - name: 构建 Windows 安装包
         working-directory: frontend
         run: npm run desktop:build -- --bundles nsis
+      - name: 生成稳定下载文件名
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem frontend/src-tauri/target/release/bundle/nsis/*_x64-setup.exe | Select-Object -First 1
+          if ($null -eq $installer) { throw "未找到 Windows x64 安装包" }
+          Copy-Item -LiteralPath $installer.FullName -Destination frontend/src-tauri/target/release/bundle/nsis/TraceFlow-Windows-x64-setup.exe
       - name: 生成 SHA-256
         shell: pwsh
         run: |
           $files = @(
-            Get-ChildItem frontend/src-tauri/target/release/bundle/nsis/*.exe
+            Get-Item frontend/src-tauri/target/release/bundle/nsis/TraceFlow-Windows-x64-setup.exe
             Get-Item scripts/install-latest.ps1
           )
           $files | Get-FileHash -Algorithm SHA256 | ForEach-Object {
@@ -59,7 +65,7 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: |
-            frontend/src-tauri/target/release/bundle/nsis/*.exe
+            frontend/src-tauri/target/release/bundle/nsis/TraceFlow-Windows-x64-setup.exe
             frontend/src-tauri/target/release/bundle/nsis/SHA256SUMS.txt
             scripts/install-latest.ps1
           generate_release_notes: true

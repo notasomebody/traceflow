@@ -16,44 +16,28 @@ if ($Repository -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') {
     throw "Invalid GitHub repository: $Repository"
 }
 
-$headers = @{
-    Accept = "application/vnd.github+json"
-    "User-Agent" = "TraceFlow-Installer"
-    "X-GitHub-Api-Version" = "2022-11-28"
-}
-$releaseUrl = "https://api.github.com/repos/$Repository/releases/latest"
-Write-Step "Reading the latest stable GitHub release"
-try {
-    $release = Invoke-RestMethod -Uri $releaseUrl -Headers $headers -Method Get
-} catch {
-    throw "Unable to read the latest stable GitHub release. Check the network and release page: $releaseUrl"
-}
+$headers = @{ "User-Agent" = "TraceFlow-Installer" }
+$releaseRoot = "https://github.com/$Repository/releases/latest/download"
+$installerName = "TraceFlow-Windows-x64-setup.exe"
+$checksumName = "SHA256SUMS.txt"
+$installerUrl = "$releaseRoot/$installerName"
+$checksumUrl = "$releaseRoot/$checksumName"
 
-if ($release.draft -or $release.prerelease) {
-    throw "The GitHub release is a draft or prerelease. Installation stopped."
-}
-
-$installerAsset = @($release.assets) | Where-Object {
-    $_.name -match '(?i)_x64-setup\.exe$'
-} | Select-Object -First 1
-$checksumAsset = @($release.assets) | Where-Object {
-    $_.name -eq 'SHA256SUMS.txt'
-} | Select-Object -First 1
-if ($null -eq $installerAsset -or $null -eq $checksumAsset) {
-    throw "Release $($release.tag_name) does not contain a Windows installer and SHA256SUMS.txt."
-}
-
-$downloadRoot = Join-Path ([IO.Path]::GetTempPath()) "TraceFlowInstall-$($release.tag_name)"
+$downloadRoot = Join-Path ([IO.Path]::GetTempPath()) "TraceFlowInstall-latest"
 [IO.Directory]::CreateDirectory($downloadRoot) | Out-Null
-$installerPath = Join-Path $downloadRoot $installerAsset.name
-$checksumPath = Join-Path $downloadRoot $checksumAsset.name
+$installerPath = Join-Path $downloadRoot $installerName
+$checksumPath = Join-Path $downloadRoot $checksumName
 
-Write-Step "Downloading the $($release.tag_name) installer"
-Invoke-WebRequest -Uri $installerAsset.browser_download_url -Headers $headers -OutFile $installerPath
-Invoke-WebRequest -Uri $checksumAsset.browser_download_url -Headers $headers -OutFile $checksumPath
+Write-Step "Downloading the latest stable installer"
+try {
+    Invoke-WebRequest -Uri $installerUrl -Headers $headers -OutFile $installerPath
+    Invoke-WebRequest -Uri $checksumUrl -Headers $headers -OutFile $checksumPath
+} catch {
+    throw "Unable to download the latest stable release assets. Check the network and release page: https://github.com/$Repository/releases/latest"
+}
 
 $checksumLine = Get-Content -LiteralPath $checksumPath -Encoding utf8 | Where-Object {
-    $_ -match [regex]::Escape($installerAsset.name) + '$'
+    $_ -match [regex]::Escape($installerName) + '$'
 } | Select-Object -First 1
 if (-not $checksumLine -or $checksumLine -notmatch '^([A-Fa-f0-9]{64})\s+') {
     throw "The installer checksum was not found in SHA256SUMS.txt."
@@ -64,6 +48,10 @@ if ($actualHash -ne $expectedHash) {
     throw "Installer SHA-256 verification failed. The file may be incomplete or modified."
 }
 Write-Step "SHA-256 verified: $actualHash"
+$installerVersion = (Get-Item -LiteralPath $installerPath).VersionInfo.ProductVersion
+if ([string]::IsNullOrWhiteSpace($installerVersion)) {
+    $installerVersion = "latest-stable"
+}
 
 $running = Get-Process -Name "traceflow-desktop" -ErrorAction SilentlyContinue
 if ($running) {
@@ -106,7 +94,7 @@ if (-not $KeepInstaller) {
 
 [pscustomobject]@{
     Product = "$([char]0x8FF9)$([char]0x6C47) TraceFlow"
-    Version = $release.tag_name
+    Version = $installerVersion
     Installed = $true
     Health = $health.status
     ApplicationPath = $applicationPath

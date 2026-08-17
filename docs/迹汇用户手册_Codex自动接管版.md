@@ -56,8 +56,8 @@ https://github.com/notasomebody/traceflow/releases/latest
 
 如果默认安装位置不存在，按以下顺序执行：
 
-1. 通过 GitHub 官方接口读取 `notasomebody/traceflow` 的最新正式 Release。
-2. 如果返回的是草稿或预发布版，立即停止；不得改为克隆源码、下载 Actions 临时产物或使用第三方镜像。
+1. 使用 GitHub 的 `/releases/latest/download/` 稳定版下载地址；该地址只指向仓库标记为 Latest 的正式 Release，不调用容易受匿名限流影响的 GitHub API。
+2. 如果稳定版地址不存在，立即停止；不得改为克隆源码、下载 Actions 临时产物、使用预发布版或第三方镜像。
 3. 从该 Release 下载 `install-latest.ps1` 和 `SHA256SUMS.txt` 到临时目录，不使用 `irm | iex` 等边下载边执行方式。
 4. 用 `SHA256SUMS.txt` 校验脚本的 SHA-256；校验失败立即删除文件并停止。
 5. 阅读并确认脚本只访问 GitHub、安装迹汇和检查 `127.0.0.1:17890` 后，再从本地文件执行脚本。
